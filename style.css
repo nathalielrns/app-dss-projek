@@ -1,0 +1,173 @@
+:root {
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --ink: #1d1d1b;
+  --ink-soft: #5c5a54;
+  --line: #e3e0d8;
+  --accent: #b5562e;
+  --accent-soft: #f3e3da;
+  --good: #2f6b4f;
+  --radius: 10px;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar-inner {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  letter-spacing: 0.5px;
+}
+.brand-accent { color: var(--accent); }
+
+.tabs { display: flex; gap: 6px; }
+.tab {
+  border: none;
+  background: transparent;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+.tab.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+.container { max-width: 920px; margin: 0 auto; padding: 32px 24px 80px; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin: 0 0 16px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.card-header-row .card-title { margin-bottom: 0; }
+
+.hint { color: var(--ink-soft); font-size: 13px; margin: 0 0 14px; }
+
+.field-row { display: flex; gap: 16px; }
+.field { flex: 1; margin-bottom: 14px; }
+.field-small { flex: 0 0 160px; }
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.field input, .field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--ink);
+}
+.field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.grid-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.grid-table th {
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line);
+  padding: 8px 8px;
+}
+.grid-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.grid-table input, .grid-table select {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 14px;
+  background: var(--bg);
+}
+.grid-table input[type="number"] { font-family: "SF Mono", Menlo, monospace; }
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+.btn-remove {
+  background: transparent;
+  border: none;
+  color: #b54040;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.total-bobot { margin-top: 10px; font-size: 13px; color: var(--ink-soft); }
+.total-bobot span { font-weight: 700; color: var(--ink); }
+
+.action-row { display: flex; align-items: center; gap: 16px; margin: 24px 0; }
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 12px 26px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary:hover { background: #98461f; }
+.status-msg { font-size: 13px; color: var(--ink-soft); }
+.status-msg.error { color: #b54040; }
+.status-msg.success { color: var(--good); }
+
+.result-card { border-color: var(--accent); }
+
+@media (max-width: 600px) {
+  .field-row { flex-direction: column; }
+  .field-small { flex: 1; }
+}
