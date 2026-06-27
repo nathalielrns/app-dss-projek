@@ -2,7 +2,6 @@
    DSS App — app.js
    Dark theme upgrade + Export CSV/JSON + Power BI push
    ===================================================== */
-
 const API = ""; // kosongkan kalau frontend & backend satu domain (Railway)
 
 // ---------- STATE ----------
@@ -438,16 +437,19 @@ function setLoggedOut() {
 
 // Simulasi Google Login (ganti dengan google OAuth SDK jika sudah punya Client ID)
 function doGoogleLogin() {
-  // Untuk implementasi nyata:
-  // 1. Daftar di console.cloud.google.com → buat OAuth 2.0 Client ID
-  // 2. Load Google Identity Services: <script src="https://accounts.google.com/gsi/client">
-  // 3. Panggil google.accounts.id.initialize({ client_id: "YOUR_CLIENT_ID", callback: handleCredentialResponse })
-  // 4. google.accounts.id.prompt()
+  const GOOGLE_CLIENT_ID = "938598227982-p9f44mpcj8587v5o17hagatr0o9dfo0f.apps.googleusercontent.com";
+function doGoogleLogin() {
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: (response) => {
+      // Decode JWT token
+      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+      setLoggedIn(payload.name, payload.email, "google");
+    }
+  });
 
-  // SIMULASI:
-  const name = prompt("Simulasi Google Login\nMasukkan nama kamu:");
-  const email = prompt("Masukkan email Google kamu:");
-  if (name && email) setLoggedIn(name, email, "google");
+  google.accounts.id.prompt();
+}
 }
 
 // Simulasi Microsoft Login (ganti dengan MSAL.js jika sudah punya Azure App)
