@@ -438,8 +438,6 @@ function setLoggedOut() {
 // Simulasi Google Login (ganti dengan google OAuth SDK jika sudah punya Client ID)
 function doGoogleLogin() {
   const GOOGLE_CLIENT_ID = "938598227982-p9f44mpcj8587v5o17hagatr0o9dfo0f.apps.googleusercontent.com";
-
-function doGoogleLogin() {
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
     callback: handleCredentialResponse
@@ -456,7 +454,6 @@ function handleCredentialResponse(response) {
     payload.email,
     "google"
   );
-}
 }
 
 // Simulasi Microsoft Login (ganti dengan MSAL.js jika sudah punya Azure App)
