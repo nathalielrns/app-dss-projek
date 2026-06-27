@@ -438,17 +438,24 @@ function setLoggedOut() {
 // Simulasi Google Login (ganti dengan google OAuth SDK jika sudah punya Client ID)
 function doGoogleLogin() {
   const GOOGLE_CLIENT_ID = "938598227982-p9f44mpcj8587v5o17hagatr0o9dfo0f.apps.googleusercontent.com";
+
 function doGoogleLogin() {
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
-    callback: (response) => {
-      // Decode JWT token
-      const payload = JSON.parse(atob(response.credential.split('.')[1]));
-      setLoggedIn(payload.name, payload.email, "google");
-    }
+    callback: handleCredentialResponse
   });
 
   google.accounts.id.prompt();
+}
+
+function handleCredentialResponse(response) {
+  const payload = JSON.parse(atob(response.credential.split(".")[1]));
+
+  setLoggedIn(
+    payload.name,
+    payload.email,
+    "google"
+  );
 }
 }
 
