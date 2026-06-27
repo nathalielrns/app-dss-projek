@@ -437,6 +437,17 @@ function setLoggedOut() {
 
 // Simulasi Google Login (ganti dengan google OAuth SDK jika sudah punya Client ID)
 function doGoogleLogin() {
+   console.log("Google login diklik");
+
+  const GOOGLE_CLIENT_ID = "938598227982-p9f44mpcj8587v5o17hagatr0o9dfo0f.apps.googleusercontent.com";
+
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleCredentialResponse
+  });
+
+  google.accounts.id.prompt();
+   
   const GOOGLE_CLIENT_ID = "938598227982-p9f44mpcj8587v5o17hagatr0o9dfo0f.apps.googleusercontent.com";
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
