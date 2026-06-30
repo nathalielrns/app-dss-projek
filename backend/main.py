@@ -7,11 +7,10 @@ from sqlalchemy import text
 from typing import List
 import os
 
-from database import engine, get_db, Base
-import models
-import schemas
-from saw import hitung_saw
-from topsis import hitung_topsis
+from backend.database import engine, get_db, Base
+from backend import models, schemas
+from backend.saw import hitung_saw
+from backend.topsis import hitung_topsis
 
 Base.metadata.create_all(bind=engine)
 
