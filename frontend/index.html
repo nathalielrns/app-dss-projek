@@ -1,143 +1,158 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DSS — Sistem Pendukung Keputusan</title>
+<title>Ado's BI — Sistem Pendukung Keputusan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
+<!-- ===== CURSOR ===== -->
+<canvas id="cursor-canvas" width="56" height="56" style="position:fixed;pointer-events:none;z-index:9999;transform:translate(-50%,-120%);transition:none"></canvas>
+
+<!-- ===== ONBOARDING OVERLAY ===== -->
+<div id="onboarding-overlay" style="display:none">
+  <div id="onboarding-backdrop"></div>
+  <div id="onboarding-box">
+    <canvas id="onboard-chibi" width="100" height="110"></canvas>
+    <div id="onboard-bubble">
+      <div id="onboard-text">Halo! Aku Ado~ Aku akan tunjukkan cara pakai Ado's BI!</div>
+      <div id="onboard-step-ind"></div>
+      <div id="onboard-btn-row">
+        <button id="onboard-skip">Lewati</button>
+        <button id="onboard-next">Lanjut →</button>
+      </div>
+    </div>
+  </div>
+  <div id="onboard-spotlight"></div>
+</div>
+
 <!-- ===== SIDEBAR ===== -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <div class="logo-icon">
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <rect x="1" y="1" width="8" height="8" rx="2" fill="currentColor" opacity="0.9"/>
-        <rect x="13" y="1" width="8" height="8" rx="2" fill="currentColor" opacity="0.5"/>
-        <rect x="1" y="13" width="8" height="8" rx="2" fill="currentColor" opacity="0.5"/>
-        <rect x="13" y="13" width="8" height="8" rx="2" fill="currentColor" opacity="0.9"/>
-      </svg>
+    <canvas id="logo-chibi" width="36" height="36"></canvas>
+    <div>
+      <div class="logo-name">Ado's BI</div>
+      <div class="logo-sub">Decision Support</div>
     </div>
-    <span class="logo-text">DSS<span class="logo-dot">.</span>app</span>
   </div>
 
   <nav class="sidebar-nav">
-    <div class="nav-group-label">Menu</div>
-    <button class="nav-item active" data-tab="baru">
-      <span class="nav-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 5v14M5 12h14"/>
-        </svg>
-      </span>
-      <span>Studi Kasus Baru</span>
+    <div class="nav-label">Analisis</div>
+    <button class="nav-item active" data-tab="baru" data-tour="nav-baru">
+      <span class="ni">⚡</span><span>Studi Kasus Baru</span>
     </button>
     <button class="nav-item" data-tab="riwayat">
-      <span class="nav-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-        </svg>
-      </span>
-      <span>Riwayat</span>
+      <span class="ni">📜</span><span>Riwayat</span>
+    </button>
+    <button class="nav-item" data-tab="whatif">
+      <span class="ni">🎛️</span><span>What-If Analysis</span>
+      <span class="nav-badge">Live</span>
     </button>
     <button class="nav-item" data-tab="export">
-      <span class="nav-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-      </span>
-      <span>Export & Power BI</span>
-      <span class="nav-badge">New</span>
+      <span class="ni">📤</span><span>Export</span>
+    </button>
+    <div class="nav-label" style="margin-top:14px">Dev</div>
+    <button class="nav-item" data-tab="test">
+      <span class="ni">🧪</span><span>Unit Test</span>
     </button>
   </nav>
 
-  <div class="sidebar-bottom">
-    <div class="nav-group-label">Akun</div>
-    <!-- Auth state: logged out -->
-    <div id="auth-section-sidebar">
-      <button class="nav-item" id="btn-login-google-side">
-        <span class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-        </span>
-        <span>Login dengan Google</span>
-      </button>
-      <button class="nav-item" id="btn-login-ms-side">
-        <span class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <rect x="1" y="1" width="10" height="10" fill="#F25022"/>
-            <rect x="13" y="1" width="10" height="10" fill="#7FBA00"/>
-            <rect x="1" y="13" width="10" height="10" fill="#00A4EF"/>
-            <rect x="13" y="13" width="10" height="10" fill="#FFB900"/>
-          </svg>
-        </span>
-        <span>Login dengan Microsoft</span>
-      </button>
-    </div>
-    <!-- Auth state: logged in (hidden by default) -->
-    <div id="user-profile-sidebar" style="display:none;">
-      <div class="user-chip">
-        <div class="user-avatar" id="user-avatar-text">U</div>
-        <div class="user-info">
-          <div class="user-name" id="user-display-name">User</div>
-          <div class="user-email" id="user-display-email">user@email.com</div>
-        </div>
-        <button class="btn-logout" id="btn-logout" title="Logout">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
-        </button>
-      </div>
-    </div>
+  <!-- Ado chibi sidebar -->
+  <div class="sb-chibi-wrap">
+    <canvas id="sb-chibi" width="90" height="90"></canvas>
+    <div class="sb-speech" id="sb-speech">Ganbare! 頑張れ！</div>
   </div>
 </aside>
 
-<!-- ===== MAIN AREA ===== -->
+<!-- ===== MAIN ===== -->
 <div class="main-wrap">
 
-  <!-- Topbar -->
+  <!-- TOPBAR -->
   <header class="topbar">
-    <button class="sidebar-toggle" id="sidebar-toggle">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
-      </svg>
-    </button>
-    <div class="topbar-title" id="topbar-title">Studi Kasus Baru</div>
+    <button class="menu-btn" id="menu-btn">☰</button>
+    <div class="topbar-title">
+      <span class="tb-eye">Ado's BI</span>
+      <span class="tb-page" id="tb-page">Studi Kasus Baru</span>
+    </div>
     <div class="topbar-right">
-      <div class="status-dot" id="status-dot" title="Terhubung ke server"></div>
+      <!-- Theme toggle -->
+      <button class="icon-btn" id="theme-toggle" title="Ganti tema">
+        <span id="theme-icon">🌙</span>
+      </button>
+      <!-- Tour button -->
+      <button class="icon-btn" id="btn-tour" title="Panduan Ado">
+        <span>🎤</span>
+      </button>
+      <!-- Server status -->
+      <div class="srv-pill">
+        <span class="srv-dot" id="srv-dot"></span>
+        <span id="srv-lbl">...</span>
+      </div>
+      <!-- Profile button -->
+      <button class="profile-btn" id="profile-btn" title="Akun">
+        <canvas id="profile-canvas" width="32" height="32"></canvas>
+      </button>
     </div>
   </header>
 
-  <!-- Content -->
-  <main class="content">
-
-    <!-- ============ TAB: STUDI KASUS BARU ============ -->
-    <section id="tab-baru" class="tab-panel active">
-
-      <div class="page-hero">
-        <div class="hero-text">
-          <h1>Analisis Keputusan</h1>
-          <p>Buat studi kasus baru dengan metode SAW atau TOPSIS. Isi kriteria, alternatif, dan nilai — sistem akan menghitung ranking secara otomatis.</p>
+  <!-- PROFILE DROPDOWN -->
+  <div class="profile-dropdown" id="profile-dropdown" style="display:none">
+    <div id="pd-logged-out">
+      <div class="pd-title">Masuk ke Ado's BI</div>
+      <button class="pd-auth-btn" id="pd-google">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Lanjutkan dengan Google
+      </button>
+      <button class="pd-auth-btn ms" id="pd-ms">
+        <svg width="18" height="18" viewBox="0 0 24 24"><rect x="1" y="1" width="10" height="10" fill="#F25022"/><rect x="13" y="1" width="10" height="10" fill="#7FBA00"/><rect x="1" y="13" width="10" height="10" fill="#00A4EF"/><rect x="13" y="13" width="10" height="10" fill="#FFB900"/></svg>
+        Lanjutkan dengan Microsoft
+      </button>
+      <div class="pd-note">Login untuk menyimpan preferensi &amp; push ke Power BI</div>
+    </div>
+    <div id="pd-logged-in" style="display:none">
+      <div class="pd-user-row">
+        <canvas id="pd-avatar" width="40" height="40"></canvas>
+        <div>
+          <div class="pd-name" id="pd-name">-</div>
+          <div class="pd-email" id="pd-email">-</div>
         </div>
       </div>
+      <div class="pd-divider"></div>
+      <button class="pd-menu-item" id="pd-history">📜 Lihat Riwayat Saya</button>
+      <button class="pd-menu-item" id="pd-export-btn">📥 Export Data Saya</button>
+      <div class="pd-divider"></div>
+      <button class="pd-menu-item danger" id="pd-logout">🚪 Logout</button>
+    </div>
+  </div>
 
-      <!-- Step 1 -->
-      <div class="card">
-        <div class="card-step">01</div>
-        <h2 class="card-title">Informasi Studi Kasus</h2>
-        <div class="field-row">
+  <!-- CONTENT -->
+  <main class="content">
+
+    <!-- ======= TAB BARU ======= -->
+    <section id="tab-baru" class="tab-panel active">
+      <div class="hero-banner" data-tour="hero">
+        <div class="hero-left">
+          <div class="hero-eye">⚡ Decision Support System</div>
+          <h1 class="hero-h1">Temukan Anime<br><span class="gtext">Terbaik</span> Untukmu</h1>
+          <p class="hero-p">Gunakan metode SAW atau TOPSIS untuk meranking pilihan secara ilmiah berdasarkan kriteria yang kamu tentukan.</p>
+        </div>
+        <canvas id="hero-chibi" width="170" height="170"></canvas>
+      </div>
+
+      <div class="card" data-tour="step1">
+        <div class="c-eye">Step 01</div>
+        <h2 class="c-title">Informasi Studi Kasus</h2>
+        <div class="frow">
           <div class="field">
             <label>Nama studi kasus</label>
-            <input type="text" id="input-nama" placeholder="Contoh: Pemilihan Karyawan Terbaik Q2 2026">
+            <input type="text" id="input-nama" placeholder="Contoh: Ranking Anime Winter 2025">
           </div>
-          <div class="field field-small">
+          <div class="field fsm">
             <label>Metode</label>
             <select id="input-metode">
               <option value="SAW">SAW — Simple Additive Weighting</option>
@@ -146,291 +161,225 @@
           </div>
         </div>
         <div class="field">
-          <label>Deskripsi <span class="label-optional">(opsional)</span></label>
-          <input type="text" id="input-deskripsi" placeholder="Catatan singkat tentang studi kasus ini">
+          <label>Deskripsi <span class="lopt">(opsional)</span></label>
+          <input type="text" id="input-deskripsi" placeholder="Catatan singkat...">
         </div>
       </div>
 
-      <!-- Step 2 -->
-      <div class="card">
-        <div class="card-step">02</div>
-        <div class="card-header-row">
-          <h2 class="card-title">Kriteria</h2>
-          <button class="btn-ghost" id="btn-tambah-kriteria">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            Tambah kriteria
-          </button>
+      <div class="card" data-tour="step2">
+        <div class="c-eye">Step 02</div>
+        <div class="chrow">
+          <h2 class="c-title">Kriteria</h2>
+          <button class="btn-ghost" id="btn-add-k">+ Kriteria</button>
         </div>
-        <p class="hint">Total bobot semua kriteria harus berjumlah <strong>1.0</strong> — contoh: 0.4 + 0.35 + 0.25</p>
-        <div class="table-wrap">
-          <table class="grid-table" id="tabel-kriteria">
-            <thead>
-              <tr><th>Nama kriteria</th><th style="width:110px">Bobot</th><th style="width:240px">Tipe</th><th style="width:60px"></th></tr>
-            </thead>
+        <p class="hint">Total bobot harus = <strong>1.00</strong></p>
+        <div class="twrap">
+          <table class="gtable" id="tbl-kriteria">
+            <thead><tr><th>Nama</th><th style="width:110px">Bobot</th><th style="width:230px">Tipe</th><th style="width:44px"></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
-        <div class="bobot-bar-wrap">
-          <div class="bobot-bar-track">
-            <div class="bobot-bar-fill" id="bobot-bar-fill"></div>
-          </div>
-          <div class="bobot-label">Total bobot: <span id="total-bobot" class="bobot-value">0.00</span> / 1.00</div>
+        <div class="bbar-wrap">
+          <div class="bbar-track"><div class="bbar-fill" id="bbar-fill"></div></div>
+          <span class="bbar-label">Total: <strong id="total-bobot" class="bval">0.00</strong> / 1.00</span>
         </div>
       </div>
 
-      <!-- Step 3 -->
       <div class="card">
-        <div class="card-step">03</div>
-        <div class="card-header-row">
-          <h2 class="card-title">Alternatif</h2>
-          <button class="btn-ghost" id="btn-tambah-alternatif">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            Tambah alternatif
-          </button>
+        <div class="c-eye">Step 03</div>
+        <div class="chrow">
+          <h2 class="c-title">Alternatif</h2>
+          <button class="btn-ghost" id="btn-add-a">+ Alternatif</button>
         </div>
-        <div class="table-wrap">
-          <table class="grid-table" id="tabel-alternatif">
-            <thead><tr><th>Nama alternatif</th><th style="width:60px"></th></tr></thead>
+        <div class="twrap">
+          <table class="gtable" id="tbl-alt">
+            <thead><tr><th>Nama</th><th style="width:44px"></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
       </div>
 
-      <!-- Step 4 -->
-      <div class="card">
-        <div class="card-step">04</div>
-        <h2 class="card-title">Matriks Nilai</h2>
-        <p class="hint">Isi kriteria dan alternatif terlebih dahulu — tabel nilai akan muncul otomatis di sini.</p>
-        <div class="table-wrap" id="matriks-wrapper">
-          <div class="empty-state">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-            <p>Belum ada data untuk ditampilkan</p>
-          </div>
+      <div class="card" data-tour="step4">
+        <div class="c-eye">Step 04</div>
+        <h2 class="c-title">Matriks Nilai</h2>
+        <p class="hint">Isi skor untuk setiap kombinasi alternatif × kriteria.</p>
+        <div class="twrap" id="matriks-wrap">
+          <div class="empty-st"><span>📊</span><p>Isi kriteria dan alternatif dulu ya~</p></div>
         </div>
       </div>
 
-      <!-- Action -->
-      <div class="action-row">
-        <button class="btn-primary" id="btn-hitung">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          Hitung & Simpan
-        </button>
-        <span id="status-msg" class="status-msg"></span>
+      <div class="act-row">
+        <button class="btn-primary" id="btn-hitung">⚡ Hitung &amp; Simpan</button>
+        <span id="status-msg" class="smsg"></span>
       </div>
 
-      <!-- Hasil -->
-      <div class="card result-card" id="hasil-card" style="display:none;">
-        <div class="result-header">
+      <div class="card result-card" id="hasil-card" style="display:none">
+        <div class="rh">
           <div>
-            <h2 class="card-title" style="margin-bottom:4px">Hasil Perhitungan</h2>
-            <p class="hint" style="margin:0" id="hasil-meta"></p>
+            <div class="c-eye">Hasil</div>
+            <h2 class="c-title" id="hasil-title">Ranking</h2>
           </div>
-          <div class="result-actions">
-            <button class="btn-ghost" id="btn-export-csv-result">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export CSV
-            </button>
+          <div style="display:flex;gap:8px">
+            <button class="btn-ghost" id="exp-csv-res">⬇ CSV</button>
+            <button class="btn-ghost" id="exp-xlsx-res">⬇ Excel</button>
           </div>
         </div>
-        <table class="grid-table" id="tabel-hasil">
-          <thead><tr><th style="width:70px">Ranking</th><th>Alternatif</th><th style="width:120px">Skor</th><th style="width:120px">Visualisasi</th></tr></thead>
+        <table class="gtable" id="tbl-hasil">
+          <thead><tr><th style="width:60px">Rank</th><th>Nama</th><th style="width:110px">Skor</th><th style="width:130px">Bar</th></tr></thead>
           <tbody></tbody>
         </table>
+        <div class="chart-wrap"><canvas id="hasil-chart" height="200"></canvas></div>
       </div>
-
     </section>
 
-    <!-- ============ TAB: RIWAYAT ============ -->
+    <!-- ======= TAB RIWAYAT ======= -->
     <section id="tab-riwayat" class="tab-panel">
-      <div class="page-hero">
-        <div class="hero-text">
-          <h1>Riwayat Studi Kasus</h1>
-          <p>Semua studi kasus yang pernah dihitung tersimpan di sini. Klik untuk melihat detail hasil.</p>
-        </div>
-        <button class="btn-ghost" id="btn-refresh-riwayat">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          Muat ulang
-        </button>
+      <div class="ph">
+        <div><h1 class="ptitle">Riwayat</h1><p class="pdesc">Semua studi kasus tersimpan di sini.</p></div>
+        <button class="btn-ghost" id="btn-refresh">↻ Muat ulang</button>
       </div>
-
       <div class="card">
-        <div class="table-wrap">
-          <table class="grid-table" id="tabel-riwayat">
-            <thead><tr><th>Nama studi kasus</th><th style="width:100px">Metode</th><th style="width:160px">Dibuat</th><th style="width:100px"></th></tr></thead>
-            <tbody><tr><td colspan="4" class="td-loading">Klik "Muat ulang" untuk memuat data.</td></tr></tbody>
+        <div class="twrap">
+          <table class="gtable" id="tbl-riwayat">
+            <thead><tr><th>Nama</th><th style="width:90px">Metode</th><th style="width:150px">Dibuat</th><th style="width:80px"></th></tr></thead>
+            <tbody><tr><td colspan="4" class="tdc">Klik "Muat ulang".</td></tr></tbody>
           </table>
         </div>
       </div>
-
-      <div class="card result-card" id="riwayat-detail-card" style="display:none;">
-        <div class="result-header">
-          <h2 class="card-title" id="riwayat-detail-title">Detail Hasil</h2>
-          <button class="btn-ghost" id="btn-export-csv-riwayat">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export CSV
-          </button>
+      <div class="card result-card" id="riwayat-detail" style="display:none">
+        <div class="rh">
+          <h2 class="c-title" id="riwayat-title">Detail</h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn-ghost" id="exp-csv-riw">⬇ CSV</button>
+            <button class="btn-ghost" id="exp-xlsx-riw">⬇ Excel</button>
+          </div>
         </div>
-        <table class="grid-table" id="tabel-riwayat-detail">
-          <thead><tr><th style="width:70px">Ranking</th><th>Alternatif</th><th style="width:120px">Skor</th><th style="width:120px">Visualisasi</th></tr></thead>
+        <table class="gtable" id="tbl-riwayat-detail">
+          <thead><tr><th style="width:60px">Rank</th><th>Nama</th><th style="width:110px">Skor</th><th style="width:130px">Bar</th></tr></thead>
           <tbody></tbody>
         </table>
+        <div class="chart-wrap"><canvas id="riwayat-chart" height="200"></canvas></div>
       </div>
     </section>
 
-    <!-- ============ TAB: EXPORT & POWER BI ============ -->
+    <!-- ======= TAB WHAT-IF ======= -->
+    <section id="tab-whatif" class="tab-panel">
+      <div class="ph">
+        <div><h1 class="ptitle">What-If Analysis</h1><p class="pdesc">Geser slider bobot dan lihat ranking berubah real-time.</p></div>
+      </div>
+      <div class="wi-layout">
+        <div class="card">
+          <div class="c-eye">Kontrol</div>
+          <h2 class="c-title">Simulasi Bobot</h2>
+          <div class="field" style="margin-bottom:14px">
+            <label>Pilih studi kasus</label>
+            <select id="wi-sel"><option value="">-- Pilih --</option></select>
+          </div>
+          <div id="wi-sliders"></div>
+          <div class="bbar-wrap" style="margin-top:10px">
+            <div class="bbar-track"><div class="bbar-fill" id="wi-bbar"></div></div>
+            <span class="bbar-label">Total: <strong id="wi-total" class="bval">0.00</strong></span>
+          </div>
+          <button class="btn-primary" id="btn-wi" style="margin-top:14px;width:100%">⚡ Simulasikan</button>
+        </div>
+        <div class="card">
+          <div class="c-eye">Hasil Simulasi</div>
+          <h2 class="c-title">Ranking Real-Time</h2>
+          <table class="gtable" id="tbl-wi">
+            <thead><tr><th style="width:55px">Rank</th><th>Nama</th><th style="width:100px">Skor</th><th style="width:120px">Bar</th></tr></thead>
+            <tbody><tr><td colspan="4" class="tdc">Belum ada simulasi.</td></tr></tbody>
+          </table>
+          <div class="chart-wrap"><canvas id="wi-chart" height="190"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= TAB EXPORT ======= -->
     <section id="tab-export" class="tab-panel">
-      <div class="page-hero">
-        <div class="hero-text">
-          <h1>Export & Power BI</h1>
-          <p>Export data ke berbagai format atau hubungkan langsung ke Power BI untuk dashboard interaktif.</p>
-        </div>
+      <div class="ph">
+        <div><h1 class="ptitle">Export &amp; Power BI</h1><p class="pdesc">Download data atau push langsung ke Power BI.</p></div>
       </div>
-
-      <!-- Export CSV/JSON -->
       <div class="card">
-        <h2 class="card-title">Export Data</h2>
-        <p class="hint">Download semua data studi kasus ke file CSV atau JSON untuk diproses lebih lanjut.</p>
-        <div class="export-grid">
-          <div class="export-option">
-            <div class="export-icon export-icon-csv">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            </div>
-            <div class="export-info">
-              <div class="export-name">CSV — Excel / Google Sheets</div>
-              <div class="export-desc">Format paling universal. Bisa langsung dibuka di Excel.</div>
-            </div>
-            <button class="btn-export" id="btn-export-all-csv">Download CSV</button>
+        <h2 class="c-title">Export Semua Data</h2>
+        <div class="exp-grid">
+          <div class="exp-opt">
+            <div class="exp-ico" style="background:rgba(74,222,128,.1);color:#4ade80">📄</div>
+            <div><div class="exp-n">CSV</div><div class="exp-d">Excel / Google Sheets</div></div>
+            <button class="btn-exp" id="exp-all-csv">Download</button>
           </div>
-          <div class="export-option">
-            <div class="export-icon export-icon-json">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-            </div>
-            <div class="export-info">
-              <div class="export-name">JSON — API / Developer</div>
-              <div class="export-desc">Untuk integrasi dengan sistem lain atau analisis kustom.</div>
-            </div>
-            <button class="btn-export" id="btn-export-all-json">Download JSON</button>
+          <div class="exp-opt">
+            <div class="exp-ico" style="background:rgba(34,197,94,.12);color:#22c55e">📊</div>
+            <div><div class="exp-n">Excel (.xlsx)</div><div class="exp-d">Microsoft Excel native</div></div>
+            <button class="btn-exp" id="exp-all-xlsx">Download</button>
+          </div>
+          <div class="exp-opt">
+            <div class="exp-ico" style="background:rgba(108,142,255,.1);color:#6c8eff">{ }</div>
+            <div><div class="exp-n">JSON</div><div class="exp-d">API / Developer</div></div>
+            <button class="btn-exp" id="exp-all-json">Download</button>
           </div>
         </div>
       </div>
-
-      <!-- Power BI Section -->
       <div class="card">
-        <div class="card-header-row">
-          <div>
-            <h2 class="card-title">Koneksi Power BI</h2>
-            <p class="hint" style="margin-top:4px">Login dengan akun Microsoft/Power BI untuk push data langsung ke dataset Power BI kamu.</p>
-          </div>
-          <div class="pbi-status-badge" id="pbi-status-badge">
-            <span class="dot-offline"></span> Belum terhubung
-          </div>
+        <h2 class="c-title">Koneksi Power BI</h2>
+        <div class="pbi-bar">
+          <span class="pdot" id="pbi-dot"></span>
+          <span id="pbi-stxt">Belum terhubung</span>
         </div>
-
-        <!-- Login area (shown when not logged in) -->
-        <div id="pbi-login-area">
-          <div class="auth-card-grid">
-            <div class="auth-card" id="google-auth-card">
-              <div class="auth-card-logo">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-              </div>
-              <div class="auth-card-info">
-                <div class="auth-card-name">Google</div>
-                <div class="auth-card-desc">Untuk menyimpan preferensi & riwayat sesi</div>
-              </div>
-              <button class="btn-auth" id="btn-login-google">Login</button>
-            </div>
-            <div class="auth-card" id="ms-auth-card">
-              <div class="auth-card-logo">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                  <rect x="1" y="1" width="10" height="10" fill="#F25022"/>
-                  <rect x="13" y="1" width="10" height="10" fill="#7FBA00"/>
-                  <rect x="1" y="13" width="10" height="10" fill="#00A4EF"/>
-                  <rect x="13" y="13" width="10" height="10" fill="#FFB900"/>
-                </svg>
-              </div>
-              <div class="auth-card-info">
-                <div class="auth-card-name">Microsoft / Power BI</div>
-                <div class="auth-card-desc">Untuk push data langsung ke Power BI dataset</div>
-              </div>
-              <button class="btn-auth btn-auth-ms" id="btn-login-ms">Login</button>
-            </div>
-          </div>
+        <div id="pbi-login-area" style="margin-top:14px">
+          <p class="hint">Login dengan Microsoft untuk push data langsung ke Power BI dataset kamu.</p>
+          <button class="pd-auth-btn ms" id="pbi-ms-login">
+            <svg width="18" height="18" viewBox="0 0 24 24"><rect x="1" y="1" width="10" height="10" fill="#F25022"/><rect x="13" y="1" width="10" height="10" fill="#7FBA00"/><rect x="1" y="13" width="10" height="10" fill="#00A4EF"/><rect x="13" y="13" width="10" height="10" fill="#FFB900"/></svg>
+            Login Microsoft / Power BI
+          </button>
         </div>
-
-        <!-- Power BI connected area (shown after MS login) -->
-        <div id="pbi-connected-area" style="display:none;">
-          <div class="pbi-connected-info">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f2c811" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            <span>Terhubung sebagai <strong id="pbi-user-name">-</strong></span>
+        <div id="pbi-area" style="display:none;margin-top:14px">
+          <div class="pbi-note">✅ Terhubung sebagai <strong id="pbi-uname">-</strong></div>
+          <div class="frow" style="margin-top:12px">
+            <div class="field"><label>Workspace ID</label><input type="text" id="pbi-ws" placeholder="xxxx-xxxx-xxxx"></div>
+            <div class="field"><label>Dataset ID</label><input type="text" id="pbi-ds" placeholder="xxxx-xxxx-xxxx"></div>
           </div>
-          <div class="pbi-form">
-            <div class="field-row">
-              <div class="field">
-                <label>Workspace ID Power BI</label>
-                <input type="text" id="pbi-workspace-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-              </div>
-              <div class="field">
-                <label>Dataset ID</label>
-                <input type="text" id="pbi-dataset-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-              </div>
-            </div>
-            <div class="field">
-              <label>Tabel target di Power BI</label>
-              <input type="text" id="pbi-table-name" placeholder="Hasil (nama tabel di dataset kamu)" value="Hasil">
-            </div>
-            <div class="pbi-actions">
-              <button class="btn-primary" id="btn-push-pbi">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                Push ke Power BI
-              </button>
-              <span id="pbi-push-status" class="status-msg"></span>
-            </div>
-          </div>
+          <div class="field"><label>Nama Tabel</label><input type="text" id="pbi-tbl" value="Hasil"></div>
+          <div class="act-row"><button class="btn-primary" id="btn-push-pbi">📤 Push ke Power BI</button><span class="smsg" id="pbi-smsg"></span></div>
         </div>
       </div>
-
-      <!-- Panduan koneksi manual -->
       <div class="card">
-        <h2 class="card-title">Panduan Koneksi Manual (tanpa login)</h2>
-        <p class="hint">Kalau lebih suka sambungkan Power BI langsung ke database, gunakan cara ini.</p>
-        <div class="guide-steps">
-          <div class="guide-step">
-            <div class="guide-num">1</div>
-            <div class="guide-body">
-              <div class="guide-title">Buka Power BI Desktop</div>
-              <div class="guide-desc">Get Data → PostgreSQL database (untuk Supabase) atau langsung pakai Web connector ke URL API ini.</div>
-            </div>
-          </div>
-          <div class="guide-step">
-            <div class="guide-num">2</div>
-            <div class="guide-body">
-              <div class="guide-title">Gunakan URL API</div>
-              <div class="guide-desc">Masukkan URL berikut sebagai Web data source di Power BI:</div>
-              <div class="code-block" id="api-url-display">https://your-app.railway.app/api/studi-kasus</div>
-            </div>
-          </div>
-          <div class="guide-step">
-            <div class="guide-num">3</div>
-            <div class="guide-body">
-              <div class="guide-title">Transform & Load</div>
-              <div class="guide-desc">Power BI akan parse JSON otomatis. Expand kolom "hasil" untuk mendapatkan ranking dan skor per alternatif.</div>
-            </div>
-          </div>
+        <h2 class="c-title">Koneksi Manual (tanpa login)</h2>
+        <div class="guide">
+          <div class="gs"><div class="gn">1</div><div>Power BI Desktop → Get Data → Web</div></div>
+          <div class="gs"><div class="gn">2</div><div>Masukkan URL: <code class="ic" id="api-url">https://app.railway.app/api/studi-kasus</code></div></div>
+          <div class="gs"><div class="gn">3</div><div>Expand kolom <code class="ic">hasil</code> → Load → Buat visualisasi</div></div>
         </div>
       </div>
+    </section>
+
+    <!-- ======= TAB TEST ======= -->
+    <section id="tab-test" class="tab-panel">
+      <div class="ph">
+        <div><h1 class="ptitle">Unit Test</h1><p class="pdesc">Validasi algoritma SAW dan TOPSIS secara otomatis.</p></div>
+        <button class="btn-primary" id="btn-run-test">🧪 Jalankan Test</button>
+      </div>
+      <div id="test-wrap"></div>
     </section>
 
   </main>
+
+  <!-- GAME FOOTER -->
+  <div class="game-footer">
+    <canvas id="game-canvas" width="860" height="76"></canvas>
+    <div class="game-info">
+      <div class="game-score-wrap">
+        <div class="gs-label">Score</div>
+        <div class="gs-val" id="gs-val">0</div>
+      </div>
+      <div class="gs-hint">SPACE / klik untuk lompat!</div>
+    </div>
+  </div>
 </div>
 
-<!-- ===== TOAST NOTIFICATION ===== -->
+<!-- TOAST -->
 <div id="toast" class="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>
