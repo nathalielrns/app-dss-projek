@@ -157,10 +157,11 @@ def hapus_studi_kasus(studi_id: int, db: Session = Depends(get_db)):
 
 
 # --- Serve frontend (file statis) ---
-frontend_path = os.path.dirname(__file__)
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 
 @app.get("/")
 def serve_index():
-    return FileResponse(os.path.join(frontend_path, "index.html"))
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
 
-app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
