@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List
+from backend.auth.google import router as google_router
 import os
 
 from backend.database import engine, get_db, Base
@@ -15,6 +16,7 @@ from backend.topsis import hitung_topsis
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="DSS App - Sistem Pendukung Keputusan")
+app.include_router(google_router)
 
 app.add_middleware(
     CORSMiddleware,
