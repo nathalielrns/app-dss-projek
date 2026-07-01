@@ -18,6 +18,29 @@ const DEF_K=[
 const DEF_A=[{nama:"Attack on Titan"},{nama:"Demon Slayer"},{nama:"Jujutsu Kaisen"},{nama:"Spy x Family"},{nama:"Oshi no Ko"}];
 const DEF_M=[[9.5,9.0,9.2,15],[9.0,9.8,9.5,13],[8.8,9.5,8.7,13],[8.5,8.8,8.5,10],[9.2,9.0,9.0,12]];
 
+// ===============================
+// Microsoft Login (MSAL)
+// ===============================
+
+const msalConfig = {
+    auth: {
+        clientId: "a2e965b0-c3ea-4733-b082-c50f2954e4e8",
+        authority: "https://login.microsoftonline.com/7e59309b-f5df-4e4b-bc4b-8e2946fdd9ea",
+        redirectUri: window.location.origin
+    }
+};
+
+const loginRequest = {
+    scopes: [
+        "openid",
+        "profile",
+        "email",
+        "https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All"
+    ]
+};
+
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+
 // ===== TOAST =====
 function toast(msg,type=""){
   const t=document.getElementById("toast");
