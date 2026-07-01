@@ -18,31 +18,6 @@ const DEF_K=[
 const DEF_A=[{nama:"Attack on Titan"},{nama:"Demon Slayer"},{nama:"Jujutsu Kaisen"},{nama:"Spy x Family"},{nama:"Oshi no Ko"}];
 const DEF_M=[[9.5,9.0,9.2,15],[9.0,9.8,9.5,13],[8.8,9.5,8.7,13],[8.5,8.8,8.5,10],[9.2,9.0,9.0,12]];
 
-// ===========================
-// Microsoft Authentication
-// ===========================
-
-const msalConfig = {
-    auth: {
-        clientId: "a2e965b0-c3ea-4733-b082-c50f2954e4e8",
-        authority: "https://login.microsoftonline.com/7e59309b-f5df-4e4b-bc4b-8e2946fdd9ea",
-        redirectUri: window.location.origin
-    }
-};
-
-const loginRequest = {
-    scopes: [
-        "openid",
-        "profile",
-        "email",
-        "https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All",
-        "https://analysis.windows.net/powerbi/api/Workspace.Read.All",
-        "https://analysis.windows.net/powerbi/api/Report.Read.All"
-    ]
-};
-
-const msalInstance = new msal.PublicClientApplication(msalConfig);
-
 // ===== TOAST =====
 function toast(msg,type=""){
   const t=document.getElementById("toast");
@@ -123,38 +98,27 @@ function drawMiniChibi(ctx,cx,cy,r,mood){
 }
 
 function setLoggedIn(name,email,provider){
-    currentUser={name,email,provider};
-
-    document.getElementById("pd-logged-out").style.display="none";
-    document.getElementById("pd-logged-in").style.display="block";
-    document.getElementById("pd-name").textContent=name;
-    document.getElementById("pd-email").textContent=email;
-
-    if(provider==="microsoft"){
-        document.getElementById("pbi-login-area").style.display="none";
-        document.getElementById("pbi-area").style.display="block";
-        document.getElementById("pbi-uname").textContent=name;
-        document.getElementById("pbi-dot").className="pdot on";
-        document.getElementById("pbi-stxt").textContent="Terhubung ke Power BI";
-    }
-
-    const av=document.getElementById("pd-avatar"),
-          ax=av.getContext("2d");
-
-    ax.clearRect(0,0,40,40);
-    ax.fillStyle=isDark?"#1c2a45":"#e8eeff";
-    ax.beginPath();
-    ax.arc(20,20,19,0,Math.PI*2);
-    ax.fill();
-
-    drawMiniChibi(ax,20,20,13,"happy");
-    renderProfileCanvas("happy");
-
-    document.getElementById("sb-speech").textContent=`Halo ${name}~ Ayo mulai!`;
-
-    toast(`Login sebagai ${name} ✓`,"success");
+  currentUser={name,email,provider};
+  document.getElementById("pd-logged-out").style.display="none";
+  document.getElementById("pd-logged-in").style.display="block";
+  document.getElementById("pd-name").textContent=name;
+  document.getElementById("pd-email").textContent=email;
+  if(provider==="microsoft"){
+    pbiToken="SIM_"+Date.now();
+    document.getElementById("pbi-login-area").style.display="none";
+    document.getElementById("pbi-area").style.display="block";
+    document.getElementById("pbi-uname").textContent=name;
+    document.getElementById("pbi-dot").className="pdot on";
+    document.getElementById("pbi-stxt").textContent="Terhubung ke Power BI";
+  }
+  const av=document.getElementById("pd-avatar"), ax=av.getContext("2d");
+  ax.clearRect(0,0,40,40);
+  ax.fillStyle=isDark?"#1c2a45":"#e8eeff";ax.beginPath();ax.arc(20,20,19,0,Math.PI*2);ax.fill();
+  drawMiniChibi(ax,20,20,13,"happy");
+  renderProfileCanvas("happy");
+  document.getElementById("sb-speech").textContent=`Halo ${name}~ Ayo mulai!`;
+  toast(`Login sebagai ${name} ✓`,"success");
 }
-
 function setLoggedOut(){
   currentUser=null;pbiToken=null;
   document.getElementById("pd-logged-out").style.display="block";
@@ -170,8 +134,8 @@ function doLogin(provider){
   if(n&&e){setLoggedIn(n,e,provider);pdEl.style.display="none";}
 }
 document.getElementById("pd-google").addEventListener("click",()=>doLogin("Google"));
-document.getElementById("pd-ms").addEventListener("click",loginMicrosoft);
-document.getElementById("pbi-ms-login").addEventListener("click",loginMicrosoft);
+document.getElementById("pd-ms").addEventListener("click",()=>doLogin("Microsoft"));
+document.getElementById("pbi-ms-login").addEventListener("click",()=>doLogin("Microsoft"));
 document.getElementById("pd-logout").addEventListener("click",()=>{setLoggedOut();pdEl.style.display="none";});
 document.getElementById("pd-history").addEventListener("click",()=>{
   document.querySelector('.nav-item[data-tab="riwayat"]').click();pdEl.style.display="none";
@@ -180,28 +144,6 @@ document.getElementById("pd-export-btn").addEventListener("click",()=>{
   document.querySelector('.nav-item[data-tab="export"]').click();pdEl.style.display="none";
 });
 renderProfileCanvas("anon");
-
-async function loginMicrosoft() {
-    try {
-        const loginResponse = await msalInstance.loginPopup(loginRequest);
-
-        const tokenResponse = await msalInstance.acquireTokenPopup(loginRequest);
-
-        pbiToken = tokenResponse.accessToken;
-
-        setLoggedIn(
-            loginResponse.account.name || loginResponse.account.username,
-            loginResponse.account.username,
-            "microsoft"
-        );
-
-        pdEl.style.display = "none";
-
-    } catch (err) {
-        console.error(err);
-        alert("Login Microsoft gagal.");
-    }
-}
 
 // ===== ALGORITHMS =====
 function saw(mat,krit){
