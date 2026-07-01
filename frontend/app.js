@@ -439,72 +439,131 @@ document.getElementById("btn-run-test").addEventListener("click",()=>{
   toast(`Test: ${pass}/${total} PASSED ${pass===total?"🎉":""}`,(pass===total?"success":"error"));
 });
 
-// ===== CURSOR CHIBI (always visible, stays on screen) =====
-const curC=document.getElementById("cursor-canvas");
-const curX=curC.getContext("2d");
-let cx=200,cy=200,cState="idle",cFrame=0,celebTimer=null;
+// ===== CURSOR CHIBI — CSS custom cursor (karakter = kursor, hotspot di bawah tengah) =====
+// Pakai offscreen canvas 48x64px. Hotspot = titik bawah tengah karakter (24, 63).
+// Karakter digambar dari atas, badan+kaki di bawah = titik klik user.
+
+const CUR_W=48, CUR_H=64;
+const offC=document.createElement("canvas");
+offC.width=CUR_W; offC.height=CUR_H;
+const offX=offC.getContext("2d");
+
+let cState="idle", cFrame=0, celebTimer=null;
 function triggerCelebrate(){cState="celebrate";clearTimeout(celebTimer);celebTimer=setTimeout(()=>cState="idle",3000);}
 
-function drawChibi(ctx,W,H,state,frame){
-  ctx.clearRect(0,0,W,H);
-  const mx=W/2,my=H*.55;
-  // head
+// Sembunyikan canvas HTML yang tidak dipakai (jaga kompatibilitas HTML)
+const oldCurCanvas=document.getElementById("cursor-canvas");
+if(oldCurCanvas) oldCurCanvas.style.display="none";
+
+function drawCursorFrame(state, frame){
+  offX.clearRect(0,0,CUR_W,CUR_H);
+  const cx=CUR_W/2;
+  // Karakter dibangun dari BAWAH ke ATAS supaya hotspot (bawah tengah = kaki) = titik klik
+  // Titik kaki = cy_kaki = CUR_H - 2
+  const ky=CUR_H-4;   // kaki / bawah badan
+  const by=ky-14;     // tengah badan
+  const hy=by-18;     // tengah kepala
+
+  // === BADAN ===
+  offX.fillStyle="#1e3a5f";
+  offX.beginPath();offX.ellipse(cx,by,9,11,0,0,Math.PI*2);offX.fill();
+
+  // === KAKI (animasi berjalan saat idle) ===
+  offX.fillStyle="#1e3a5f";
+  const kick=state==="click"?0:Math.sin(frame*.18)*4;
+  offX.fillRect(cx-7,ky-8,5,9+kick);
+  offX.fillRect(cx+2,ky-8,5,9-kick);
+
+  // === KEPALA ===
   const hc=state==="click"?"#f9a8d4":state==="celebrate"?"#fde68a":"#ffe4c4";
-  ctx.fillStyle=hc;ctx.beginPath();ctx.ellipse(mx,my-2,13,12,0,0,Math.PI*2);ctx.fill();
-  // hair
-  ctx.fillStyle="#2d1b69";ctx.beginPath();ctx.ellipse(mx,my-13,13,5,0,Math.PI,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.ellipse(mx-11,my-9,4,7,-.4,0,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.ellipse(mx+11,my-9,4,7,.4,0,Math.PI*2);ctx.fill();
-  // eyes
+  offX.fillStyle=hc;
+  offX.beginPath();offX.ellipse(cx,hy,12,11,0,0,Math.PI*2);offX.fill();
+
+  // === RAMBUT ===
+  offX.fillStyle="#2d1b69";
+  offX.beginPath();offX.ellipse(cx,hy-10,12,5,0,Math.PI,Math.PI*2);offX.fill();
+  offX.beginPath();offX.ellipse(cx-10,hy-6,4,6.5,-.4,0,Math.PI*2);offX.fill();
+  offX.beginPath();offX.ellipse(cx+10,hy-6,4,6.5,.4,0,Math.PI*2);offX.fill();
+
+  // === MATA ===
   if(state==="click"||state==="celebrate"){
-    ctx.strokeStyle="#2d1b69";ctx.lineWidth=1.5;
-    [[mx-7,my-3],[mx+4,my-3]].forEach(([ex,ey])=>{ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ex+3,ey+2);ctx.moveTo(ex+3,ey);ctx.lineTo(ex,ey+2);ctx.stroke();});
-  }else{
-    const blink=frame%120<4;
-    ctx.fillStyle="#2d1b69";
-    ctx.beginPath();ctx.ellipse(mx-7,my-3,2.5,blink?.5:3,0,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.ellipse(mx+5,my-3,2.5,blink?.5:3,0,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle="#fff";
-    ctx.beginPath();ctx.arc(mx-6,my-4,1,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.arc(mx+6,my-4,1,0,Math.PI*2);ctx.fill();
+    // mata X saat klik / celebrate
+    offX.strokeStyle="#2d1b69";offX.lineWidth=1.5;
+    [[cx-5,hy-1],[cx+3,hy-1]].forEach(([ex,ey])=>{
+      offX.beginPath();offX.moveTo(ex,ey);offX.lineTo(ex+2.5,ey+2.5);
+      offX.moveTo(ex+2.5,ey);offX.lineTo(ex,ey+2.5);offX.stroke();
+    });
+  } else {
+    const blink=frame%130<5;
+    offX.fillStyle="#2d1b69";
+    offX.beginPath();offX.ellipse(cx-5,hy-1,2.2,blink?.4:2.8,0,0,Math.PI*2);offX.fill();
+    offX.beginPath();offX.ellipse(cx+4,hy-1,2.2,blink?.4:2.8,0,0,Math.PI*2);offX.fill();
+    // sorot mata
+    offX.fillStyle="#fff";
+    offX.beginPath();offX.arc(cx-4.2,hy-2,1,0,Math.PI*2);offX.fill();
+    offX.beginPath();offX.arc(cx+4.8,hy-2,1,0,Math.PI*2);offX.fill();
   }
-  // mouth
-  ctx.strokeStyle="#c0392b";ctx.lineWidth=1.3;ctx.beginPath();
-  if(state==="hover"||state==="celebrate")ctx.arc(mx,my+2,4,.1,Math.PI-.1);
-  else if(state==="click")ctx.arc(mx,my+5,3,Math.PI+.1,-.1);
-  else{ctx.moveTo(mx-3,my+2);ctx.lineTo(mx+3,my+2);}
-  ctx.stroke();
-  // blush
-  if(state==="hover"||state==="celebrate"||state==="click"){
-    ctx.fillStyle="rgba(255,100,100,.22)";
-    ctx.beginPath();ctx.ellipse(mx-11,my+1,4,2.5,0,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.ellipse(mx+11,my+1,4,2.5,0,0,Math.PI*2);ctx.fill();
+
+  // === MULUT ===
+  offX.strokeStyle="#c0392b";offX.lineWidth=1.2;offX.beginPath();
+  if(state==="hover"||state==="celebrate") offX.arc(cx,hy+3,3.5,.1,Math.PI-.1);
+  else if(state==="click")                 offX.arc(cx,hy+5,2.5,Math.PI+.1,-.1);
+  else {offX.moveTo(cx-3,hy+3);offX.lineTo(cx+3,hy+3);}
+  offX.stroke();
+
+  // === PIPI ===
+  if(state!=="idle"){
+    offX.fillStyle="rgba(255,100,100,.22)";
+    offX.beginPath();offX.ellipse(cx-10,hy+2,3.5,2,0,0,Math.PI*2);offX.fill();
+    offX.beginPath();offX.ellipse(cx+10,hy+2,3.5,2,0,0,Math.PI*2);offX.fill();
   }
-  // sparkle for celebrate
+
+  // === BINTANG CELEBRATE ===
   if(state==="celebrate"){
-    ctx.fillStyle="rgba(251,191,36,.9)";
-    [[mx+18,my-20],[mx-18,my-18],[mx+20,my+2]].forEach(([sx,sy],si)=>{
-      const a=(frame*.05+si)*.7;
-      ctx.save();ctx.translate(sx+Math.cos(a)*3,sy+Math.sin(a)*3);
-      ctx.beginPath();for(let p=0;p<4;p++){ctx.lineTo(Math.cos(p*Math.PI/2)*4,Math.sin(p*Math.PI/2)*4);ctx.lineTo(Math.cos(p*Math.PI/2+Math.PI/4)*1.5,Math.sin(p*Math.PI/2+Math.PI/4)*1.5);}
-      ctx.closePath();ctx.fill();ctx.restore();
+    offX.fillStyle="rgba(251,191,36,.95)";
+    [[cx+16,hy-14],[cx-16,hy-12]].forEach(([sx,sy],si)=>{
+      const a=(frame*.08+si*1.2);
+      offX.save();offX.translate(sx+Math.cos(a)*2,sy+Math.sin(a)*2);
+      offX.beginPath();
+      for(let p=0;p<5;p++){
+        offX.lineTo(Math.cos((p*4*Math.PI/5)-Math.PI/2)*4,Math.sin((p*4*Math.PI/5)-Math.PI/2)*4);
+        offX.lineTo(Math.cos((p*4*Math.PI/5+2*Math.PI/5)-Math.PI/2)*1.8,Math.sin((p*4*Math.PI/5+2*Math.PI/5)-Math.PI/2)*1.8);
+      }
+      offX.closePath();offX.fill();offX.restore();
     });
   }
+
+  // === TITIK POINTER kecil di bawah kaki (panduan visual hotspot) ===
+  offX.fillStyle="rgba(108,142,255,.7)";
+  offX.beginPath();offX.arc(cx,CUR_H-2,2,0,Math.PI*2);offX.fill();
 }
 
-document.addEventListener("mousemove",e=>{
-  cx=e.clientX;cy=e.clientY;
-  curC.style.left=cx+"px";curC.style.top=cy+"px";
-  // keep cursor visible at all times
-  curC.style.display="block";
-});
+function applyCursorCSS(){
+  const dataURL=offC.toDataURL();
+  // hotspot: cx=24 (tengah), cy=62 (bawah = titik klik)
+  document.body.style.cursor=`url(${dataURL}) 24 62, auto`;
+}
+
+// Update state dari interaksi
 document.addEventListener("mousedown",()=>{if(cState!=="celebrate")cState="click";});
 document.addEventListener("mouseup",()=>{if(cState==="click")cState="idle";});
-document.querySelectorAll("button,a,input,select").forEach(el=>{
+document.querySelectorAll("button,a,input,select,.nav-item").forEach(el=>{
   el.addEventListener("mouseenter",()=>{if(cState==="idle")cState="hover";});
   el.addEventListener("mouseleave",()=>{if(cState==="hover")cState="idle";});
 });
-function cursorLoop(){cFrame++;drawChibi(curX,56,56,cState,cFrame);requestAnimationFrame(cursorLoop);}
+
+// Loop: render ke offscreen canvas → terapkan sebagai CSS cursor
+let lastState="",lastBlink=-1;
+function cursorLoop(){
+  cFrame++;
+  const blinkPhase=Math.floor(cFrame/5); // update CSS hanya saat ada perubahan visual
+  if(cState!==lastState || blinkPhase!==lastBlink){
+    drawCursorFrame(cState,cFrame);
+    applyCursorCSS();
+    lastState=cState; lastBlink=blinkPhase;
+  }
+  requestAnimationFrame(cursorLoop);
+}
 cursorLoop();
 
 // ===== SIDEBAR CHIBI =====
