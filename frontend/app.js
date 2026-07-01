@@ -18,29 +18,6 @@ const DEF_K=[
 const DEF_A=[{nama:"Attack on Titan"},{nama:"Demon Slayer"},{nama:"Jujutsu Kaisen"},{nama:"Spy x Family"},{nama:"Oshi no Ko"}];
 const DEF_M=[[9.5,9.0,9.2,15],[9.0,9.8,9.5,13],[8.8,9.5,8.7,13],[8.5,8.8,8.5,10],[9.2,9.0,9.0,12]];
 
-// ===============================
-// Microsoft Login (MSAL)
-// ===============================
-
-const msalConfig = {
-    auth: {
-        clientId: "a2e965b0-c3ea-4733-b082-c50f2954e4e8",
-        authority: "https://login.microsoftonline.com/7e59309b-f5df-4e4b-bc4b-8e2946fdd9ea",
-        redirectUri: window.location.origin
-    }
-};
-
-const loginRequest = {
-    scopes: [
-        "openid",
-        "profile",
-        "email",
-        "https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All"
-    ]
-};
-
-const msalInstance = new msal.PublicClientApplication(msalConfig);
-
 // ===== TOAST =====
 function toast(msg,type=""){
   const t=document.getElementById("toast");
@@ -462,11 +439,11 @@ document.getElementById("btn-run-test").addEventListener("click",()=>{
   toast(`Test: ${pass}/${total} PASSED ${pass===total?"🎉":""}`,(pass===total?"success":"error"));
 });
 
-// ===== CURSOR CHIBI — CSS custom cursor (karakter = kursor, hotspot di bawah tengah) =====
-// Pakai offscreen canvas 48x64px. Hotspot = titik bawah tengah karakter (24, 63).
-// Karakter digambar dari atas, badan+kaki di bawah = titik klik user.
+// ===== CURSOR CHIBI — CSS custom cursor =====
+// Karakter = kursor. Offscreen canvas 52x52. Hotspot = tengah kepala = (26,26).
+// Digambar sebagai KEPALA BESAR aja biar jelas di ukuran kursor kecil.
 
-const CUR_W=48, CUR_H=64;
+const CUR_W=52, CUR_H=52;
 const offC=document.createElement("canvas");
 offC.width=CUR_W; offC.height=CUR_H;
 const offX=offC.getContext("2d");
@@ -474,119 +451,142 @@ const offX=offC.getContext("2d");
 let cState="idle", cFrame=0, celebTimer=null;
 function triggerCelebrate(){cState="celebrate";clearTimeout(celebTimer);celebTimer=setTimeout(()=>cState="idle",3000);}
 
-// Sembunyikan canvas HTML yang tidak dipakai (jaga kompatibilitas HTML)
+// Sembunyikan canvas HTML lama kalau masih ada
 const oldCurCanvas=document.getElementById("cursor-canvas");
 if(oldCurCanvas) oldCurCanvas.style.display="none";
 
 function drawCursorFrame(state, frame){
   offX.clearRect(0,0,CUR_W,CUR_H);
-  const cx=CUR_W/2;
-  // Karakter dibangun dari BAWAH ke ATAS supaya hotspot (bawah tengah = kaki) = titik klik
-  // Titik kaki = cy_kaki = CUR_H - 2
-  const ky=CUR_H-4;   // kaki / bawah badan
-  const by=ky-14;     // tengah badan
-  const hy=by-18;     // tengah kepala
+  const cx=CUR_W/2, cy=CUR_H/2+2;
 
-  // === BADAN ===
-  offX.fillStyle="#1e3a5f";
-  offX.beginPath();offX.ellipse(cx,by,9,11,0,0,Math.PI*2);offX.fill();
-
-  // === KAKI (animasi berjalan saat idle) ===
-  offX.fillStyle="#1e3a5f";
-  const kick=state==="click"?0:Math.sin(frame*.18)*4;
-  offX.fillRect(cx-7,ky-8,5,9+kick);
-  offX.fillRect(cx+2,ky-8,5,9-kick);
+  // === GLOW aura tipis di belakang ===
+  const aura=offX.createRadialGradient(cx,cy,4,cx,cy,23);
+  aura.addColorStop(0,"rgba(108,142,255,0.25)");
+  aura.addColorStop(1,"rgba(108,142,255,0)");
+  offX.fillStyle=aura;
+  offX.beginPath();offX.arc(cx,cy,23,0,Math.PI*2);offX.fill();
 
   // === KEPALA ===
-  const hc=state==="click"?"#f9a8d4":state==="celebrate"?"#fde68a":"#ffe4c4";
-  offX.fillStyle=hc;
-  offX.beginPath();offX.ellipse(cx,hy,12,11,0,0,Math.PI*2);offX.fill();
+  const skinColor = state==="click"?"#f9a8d4" : state==="celebrate"?"#fde68a" : "#ffe4c4";
+  offX.fillStyle=skinColor;
+  offX.beginPath();offX.ellipse(cx,cy+1,16,15,0,0,Math.PI*2);offX.fill();
 
-  // === RAMBUT ===
+  // === RAMBUT ATAS ===
   offX.fillStyle="#2d1b69";
-  offX.beginPath();offX.ellipse(cx,hy-10,12,5,0,Math.PI,Math.PI*2);offX.fill();
-  offX.beginPath();offX.ellipse(cx-10,hy-6,4,6.5,-.4,0,Math.PI*2);offX.fill();
-  offX.beginPath();offX.ellipse(cx+10,hy-6,4,6.5,.4,0,Math.PI*2);offX.fill();
+  offX.beginPath();offX.ellipse(cx,cy-12,16,6,0,Math.PI,Math.PI*2);offX.fill();
+  // rambut samping kiri
+  offX.beginPath();offX.ellipse(cx-14,cy-7,5,8.5,-0.35,0,Math.PI*2);offX.fill();
+  // rambut samping kanan
+  offX.beginPath();offX.ellipse(cx+14,cy-7,5,8.5,0.35,0,Math.PI*2);offX.fill();
 
   // === MATA ===
-  if(state==="click"||state==="celebrate"){
-    // mata X saat klik / celebrate
-    offX.strokeStyle="#2d1b69";offX.lineWidth=1.5;
-    [[cx-5,hy-1],[cx+3,hy-1]].forEach(([ex,ey])=>{
-      offX.beginPath();offX.moveTo(ex,ey);offX.lineTo(ex+2.5,ey+2.5);
-      offX.moveTo(ex+2.5,ey);offX.lineTo(ex,ey+2.5);offX.stroke();
-    });
+  if(state==="click"){
+    // mata X
+    offX.strokeStyle="#2d1b69"; offX.lineWidth=2;
+    offX.beginPath();offX.moveTo(cx-9,cy-2);offX.lineTo(cx-4,cy+3);offX.stroke();
+    offX.beginPath();offX.moveTo(cx-4,cy-2);offX.lineTo(cx-9,cy+3);offX.stroke();
+    offX.beginPath();offX.moveTo(cx+4,cy-2);offX.lineTo(cx+9,cy+3);offX.stroke();
+    offX.beginPath();offX.moveTo(cx+9,cy-2);offX.lineTo(cx+4,cy+3);offX.stroke();
+  } else if(state==="celebrate"){
+    // mata bintang / bulan sabit
+    offX.fillStyle="#fbbf24";
+    offX.beginPath();offX.arc(cx-6,cy,3.5,0,Math.PI*2);offX.fill();
+    offX.beginPath();offX.arc(cx+6,cy,3.5,0,Math.PI*2);offX.fill();
+    offX.fillStyle=skinColor;
+    offX.beginPath();offX.arc(cx-4.5,cy-1,2.5,0,Math.PI*2);offX.fill();
+    offX.beginPath();offX.arc(cx+7.5,cy-1,2.5,0,Math.PI*2);offX.fill();
   } else {
-    const blink=frame%130<5;
+    // mata normal + kedip
+    const blink=frame%140<5;
     offX.fillStyle="#2d1b69";
-    offX.beginPath();offX.ellipse(cx-5,hy-1,2.2,blink?.4:2.8,0,0,Math.PI*2);offX.fill();
-    offX.beginPath();offX.ellipse(cx+4,hy-1,2.2,blink?.4:2.8,0,0,Math.PI*2);offX.fill();
-    // sorot mata
-    offX.fillStyle="#fff";
-    offX.beginPath();offX.arc(cx-4.2,hy-2,1,0,Math.PI*2);offX.fill();
-    offX.beginPath();offX.arc(cx+4.8,hy-2,1,0,Math.PI*2);offX.fill();
+    offX.beginPath();offX.ellipse(cx-6,cy,3,blink?0.5:3.8,0,0,Math.PI*2);offX.fill();
+    offX.beginPath();offX.ellipse(cx+6,cy,3,blink?0.5:3.8,0,0,Math.PI*2);offX.fill();
+    if(!blink){
+      // sorot mata putih kecil
+      offX.fillStyle="#ffffff";
+      offX.beginPath();offX.arc(cx-4.8,cy-1.2,1.2,0,Math.PI*2);offX.fill();
+      offX.beginPath();offX.arc(cx+7.2,cy-1.2,1.2,0,Math.PI*2);offX.fill();
+    }
   }
 
   // === MULUT ===
-  offX.strokeStyle="#c0392b";offX.lineWidth=1.2;offX.beginPath();
-  if(state==="hover"||state==="celebrate") offX.arc(cx,hy+3,3.5,.1,Math.PI-.1);
-  else if(state==="click")                 offX.arc(cx,hy+5,2.5,Math.PI+.1,-.1);
-  else {offX.moveTo(cx-3,hy+3);offX.lineTo(cx+3,hy+3);}
+  offX.strokeStyle="#c0392b"; offX.lineWidth=1.5; offX.lineCap="round";
+  offX.beginPath();
+  if(state==="hover"||state==="celebrate"){
+    // senyum lebar
+    offX.arc(cx,cy+6,5,0.2,Math.PI-0.2);
+  } else if(state==="click"){
+    // mulut O kaget
+    offX.ellipse(cx,cy+7,3,3.5,0,0,Math.PI*2);
+    offX.fillStyle="rgba(192,57,43,0.5)"; offX.fill();
+  } else {
+    // garis tipis
+    offX.moveTo(cx-4,cy+7); offX.lineTo(cx+4,cy+7);
+  }
   offX.stroke();
 
-  // === PIPI ===
-  if(state!=="idle"){
-    offX.fillStyle="rgba(255,100,100,.22)";
-    offX.beginPath();offX.ellipse(cx-10,hy+2,3.5,2,0,0,Math.PI*2);offX.fill();
-    offX.beginPath();offX.ellipse(cx+10,hy+2,3.5,2,0,0,Math.PI*2);offX.fill();
+  // === PIPI BLUSH ===
+  if(state==="hover"||state==="celebrate"||state==="click"){
+    offX.fillStyle="rgba(255,100,100,0.22)";
+    offX.beginPath();offX.ellipse(cx-14,cy+4,4.5,3,0,0,Math.PI*2);offX.fill();
+    offX.beginPath();offX.ellipse(cx+14,cy+4,4.5,3,0,0,Math.PI*2);offX.fill();
   }
 
-  // === BINTANG CELEBRATE ===
+  // === SPARKLE CELEBRATE ===
   if(state==="celebrate"){
-    offX.fillStyle="rgba(251,191,36,.95)";
-    [[cx+16,hy-14],[cx-16,hy-12]].forEach(([sx,sy],si)=>{
-      const a=(frame*.08+si*1.2);
+    const colors=["rgba(251,191,36,.95)","rgba(192,132,252,.9)","rgba(108,142,255,.9)"];
+    [[cx+20,cy-18,0],[cx-20,cy-16,2.1],[cx+18,cy+16,4.2]].forEach(([sx,sy,ph],si)=>{
+      const a=frame*.07+ph;
       offX.save();offX.translate(sx+Math.cos(a)*2,sy+Math.sin(a)*2);
+      offX.fillStyle=colors[si%colors.length];
       offX.beginPath();
       for(let p=0;p<5;p++){
-        offX.lineTo(Math.cos((p*4*Math.PI/5)-Math.PI/2)*4,Math.sin((p*4*Math.PI/5)-Math.PI/2)*4);
-        offX.lineTo(Math.cos((p*4*Math.PI/5+2*Math.PI/5)-Math.PI/2)*1.8,Math.sin((p*4*Math.PI/5+2*Math.PI/5)-Math.PI/2)*1.8);
+        offX.lineTo(Math.cos((p*4*Math.PI/5)-Math.PI/2)*5,Math.sin((p*4*Math.PI/5)-Math.PI/2)*5);
+        offX.lineTo(Math.cos((p*4*Math.PI/5+2*Math.PI/5)-Math.PI/2)*2,Math.sin((p*4*Math.PI/5+2*Math.PI/5)-Math.PI/2)*2);
       }
       offX.closePath();offX.fill();offX.restore();
     });
   }
-
-  // === TITIK POINTER kecil di bawah kaki (panduan visual hotspot) ===
-  offX.fillStyle="rgba(108,142,255,.7)";
-  offX.beginPath();offX.arc(cx,CUR_H-2,2,0,Math.PI*2);offX.fill();
 }
 
+// Terapkan cursor ke body + semua elemen agar tidak pernah balik ke default
 function applyCursorCSS(){
   const dataURL=offC.toDataURL();
-  // hotspot: cx=24 (tengah), cy=62 (bawah = titik klik)
-  document.body.style.cursor=`url(${dataURL}) 24 62, auto`;
+  // hotspot 26,26 = tengah kepala = titik klik
+  const cur=`url(${dataURL}) 26 26, pointer`;
+  document.body.style.setProperty("cursor", cur, "important");
+  // Inject/update style tag global — override semua cursor:pointer di CSS
+  let sheet=document.getElementById("_cur_style");
+  if(!sheet){sheet=document.createElement("style");sheet.id="_cur_style";document.head.appendChild(sheet);}
+  sheet.textContent=`*{cursor:url(${dataURL}) 26 26, pointer !important}`;
 }
 
-// Update state dari interaksi
-document.addEventListener("mousedown",()=>{if(cState!=="celebrate")cState="click";});
-document.addEventListener("mouseup",()=>{if(cState==="click")cState="idle";});
-document.querySelectorAll("button,a,input,select,.nav-item").forEach(el=>{
-  el.addEventListener("mouseenter",()=>{if(cState==="idle")cState="hover";});
-  el.addEventListener("mouseleave",()=>{if(cState==="hover")cState="idle";});
+// Update state dari interaksi — TIDAK mengubah cursor, loop yang handle
+document.addEventListener("mousedown",()=>{if(cState!=="celebrate"){cState="click";drawCursorFrame("click",cFrame);applyCursorCSS();}});
+document.addEventListener("mouseup",()=>{if(cState==="click"){cState="idle";drawCursorFrame("idle",cFrame);applyCursorCSS();}});
+document.addEventListener("mouseover",e=>{
+  const isInteractive=e.target.closest("button,a,input,select,textarea,.nav-item,.btn-ghost,.btn-primary,.btn-remove,.profile-btn");
+  if(cState!=="click"&&cState!=="celebrate"){
+    const next=isInteractive?"hover":"idle";
+    if(next!==cState){cState=next;drawCursorFrame(cState,cFrame);applyCursorCSS();}
+  }
 });
 
-// Loop: render ke offscreen canvas → terapkan sebagai CSS cursor
-let lastState="",lastBlink=-1;
+// Loop animasi: update tiap beberapa frame untuk blink & kaki jalan
+let lastBlink=-1;
 function cursorLoop(){
   cFrame++;
-  const blinkPhase=Math.floor(cFrame/5); // update CSS hanya saat ada perubahan visual
-  if(cState!==lastState || blinkPhase!==lastBlink){
+  const blinkPhase=Math.floor(cFrame/6);
+  if(blinkPhase!==lastBlink&&(cState==="idle"||cState==="hover")){
     drawCursorFrame(cState,cFrame);
     applyCursorCSS();
-    lastState=cState; lastBlink=blinkPhase;
+    lastBlink=blinkPhase;
   }
   requestAnimationFrame(cursorLoop);
 }
+// Apply sekali di awal sebelum user gerak
+drawCursorFrame("idle",0);
+applyCursorCSS();
 cursorLoop();
 
 // ===== SIDEBAR CHIBI =====
