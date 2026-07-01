@@ -650,19 +650,26 @@ function startTour(){
   document.getElementById("onboarding-overlay").style.display="block";
   showTourStep();
 }
+function positionSpotlight(el){
+  if(!el){document.getElementById("onboard-spotlight").style.cssText="opacity:0";return;}
+  const r=el.getBoundingClientRect();
+  const sp=document.getElementById("onboard-spotlight");
+  sp.style.cssText=`top:${r.top-8}px;left:${r.left-8}px;width:${r.width+16}px;height:${r.height+16}px;opacity:1`;
+}
 function showTourStep(){
   if(tourStep>=STEPS.length){endTour();return;}
   const step=STEPS[tourStep];
   const el=document.querySelector(step.sel);
+  // Update text & dots
   document.getElementById("onboard-text").textContent=step.text;
   const ind=document.getElementById("onboard-step-ind");
   ind.innerHTML=STEPS.map((_,i)=>`<div class="osi${i===tourStep?" active":""}"></div>`).join("");
-  if(el){
-    const r=el.getBoundingClientRect();
-    const sp=document.getElementById("onboard-spotlight");
-    sp.style.cssText=`top:${r.top-8}px;left:${r.left-8}px;width:${r.width+16}px;height:${r.height+16}px`;
-  }else{document.getElementById("onboard-spotlight").style.cssText="display:none";}
   drawOnboardChibi(tourStep%3);
+  if(!el){positionSpotlight(null);return;}
+  // Scroll element into view first, then reposition spotlight after animation
+  el.scrollIntoView({behavior:"smooth",block:"center"});
+  // Wait for scroll to settle (~600ms) then update spotlight position
+  setTimeout(()=>positionSpotlight(document.querySelector(step.sel)),650);
 }
 function endTour(){tourActive=false;document.getElementById("onboarding-overlay").style.display="none";localStorage.setItem("ado-toured","1");}
 document.getElementById("onboard-next").addEventListener("click",()=>{tourStep++;showTourStep();});
