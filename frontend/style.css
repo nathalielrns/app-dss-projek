@@ -19,9 +19,7 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--ink);font:14px/1.6 'Inter',-apple-system,sans-serif;display:flex;min-height:100vh;overflow-x:hidden;transition:background .3s,color .3s}
-/* cursor diset via JS pakai CSS custom cursor — paksa semua elemen ikut */
-*,*::before,*::after{cursor:inherit !important}
-body{cursor:pointer} /* fallback; JS akan override dengan chibi cursor */
+/* cursor diset via JS pakai CSS custom cursor — tidak perlu cursor:none */
 
 /* CURSOR */
 #cursor-canvas{display:block;pointer-events:none}
