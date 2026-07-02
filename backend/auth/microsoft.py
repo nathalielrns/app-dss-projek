@@ -2,13 +2,7 @@ from fastapi import APIRouter, Request
 from starlette.responses import RedirectResponse
 from backend.auth.aouth import oauth, microsoft_configured
 
-router = APIRouter(prefix="/auth/microsoft", tags=["Microsoft Login"])
-
-
-@router.get("/login")
-async def login_microsoft(request: Request):
-    if not microsoft_configured():
-        return RedirectResponse(
+return RedirectResponse(
             url="/?login_error=" + "Microsoft+belum+dikonfigurasi.+Isi+MICROSOFT_CLIENT_ID+%26+MICROSOFT_CLIENT_SECRET+di+.env"
         )
     redirect_uri = "https://dssapp.up.railway.app/auth/microsoft/callback"
@@ -25,12 +19,10 @@ async def auth_microsoft_callback(request: Request):
 
     request.session["user"] = {
         "name": userinfo.get("name") or userinfo.get("email"),
-        "email": userinfo.get("email"),
-        "picture": userinfo.get("picture"),
+        "email": userinfo.get("email") or userinfo.get("preferred_username"),
+        "picture": None,
         "provider": "microsoft",
     }
-
-    # Simpan access token untuk Power BI
-    request.session["microsoft_access_token"] = token["access_token"]
-
+    # Microsoft login otomatis dianggap "terhubung Power BI" (dipakai fitur push di tab Export)
+    request.session["pbi_connected"] = True
     return RedirectResponse(url="/?login_success=microsoft")
