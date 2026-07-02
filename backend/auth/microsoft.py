@@ -2,7 +2,13 @@ from fastapi import APIRouter, Request
 from starlette.responses import RedirectResponse
 from backend.auth.aouth import oauth, microsoft_configured
 
-return RedirectResponse(
+router = APIRouter(prefix="/auth/microsoft", tags=["Microsoft Login"])
+
+
+@router.get("/login")
+async def login_microsoft(request: Request):
+    if not microsoft_configured():
+        return RedirectResponse(
             url="/?login_error=" + "Microsoft+belum+dikonfigurasi.+Isi+MICROSOFT_CLIENT_ID+%26+MICROSOFT_CLIENT_SECRET+di+.env"
         )
     redirect_uri = "https://dssapp.up.railway.app/auth/microsoft/callback"
