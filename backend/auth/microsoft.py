@@ -15,13 +15,18 @@ async def login_microsoft(request: Request):
     return await oauth.microsoft.authorize_redirect(request, redirect_uri)
 
 
-@router.get("/callback", name="auth_microsoft_callback")
+import traceback
+
+@router.get("/callback")
 async def auth_microsoft_callback(request: Request):
     try:
         token = await oauth.microsoft.authorize_access_token(request)
         userinfo = token.get("userinfo") or await oauth.microsoft.userinfo(token=token)
     except Exception as e:
-        return RedirectResponse(url=f"/?login_error=Microsoft+gagal:+{e}")
+        traceback.print_exc()  # tampil full stack trace di log Railway
+        return RedirectResponse(url=f"/?login_error={type(e).__name__}: {e}")
+
+
 
     request.session["user"] = {
         "name": userinfo.get("name") or userinfo.get("email"),
