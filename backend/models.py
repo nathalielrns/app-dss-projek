@@ -13,6 +13,9 @@ class StudiKasus(Base):
     deskripsi = Column(Text, nullable=True)
     metode = Column(String(50), nullable=False)  # "SAW" atau "TOPSIS"
     dibuat_pada = Column(DateTime, default=datetime.utcnow)
+    # ID unik per-device (dibuat & disimpan browser di localStorage). Dipakai supaya
+    # tiap device/browser hanya melihat riwayat studi kasus miliknya sendiri.
+    device_id = Column(String(64), nullable=True, index=True)
 
     kriteria = relationship("Kriteria", back_populates="studi_kasus", cascade="all, delete-orphan")
     alternatif = relationship("Alternatif", back_populates="studi_kasus", cascade="all, delete-orphan")

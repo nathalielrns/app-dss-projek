@@ -1,12 +1,78 @@
 /* Ado's BI — app.js (complete rewrite) */
 const API = "";
+// © Ado's BI — dibuat oleh Nathalie
+
+// ===== DEVICE ID (riwayat per-device) =====
+// Tiap browser/device dapat 1 ID acak yang disimpan permanen di localStorage.
+// Semua request ke /api/studi-kasus* mengirim ID ini lewat header X-Device-Id,
+// jadi tiap device hanya melihat riwayat studi kasusnya sendiri.
+function getDeviceId(){
+  let id=localStorage.getItem("ado-device-id");
+  if(!id){
+    id=(crypto.randomUUID?crypto.randomUUID():("dev-"+Date.now()+"-"+Math.random().toString(16).slice(2)));
+    localStorage.setItem("ado-device-id",id);
+  }
+  return id;
+}
+const DEVICE_ID=getDeviceId();
+async function apiFetch(url,opts={}){
+  const headers=Object.assign({"X-Device-Id":DEVICE_ID},opts.headers||{});
+  return fetch(url,{...opts,headers});
+}
+
+// ===== ASET KARAKTER ADO (gambar asli, bukan gambar tangan lagi) =====
+const ADO_IMG={};
+function loadAdoAsset(key,src){
+  const img=new Image();img.src=src;ADO_IMG[key]=img;return img;
+}
+loadAdoAsset("bust","/static/assets/ado/ado_bust.png");
+loadAdoAsset("bustDark","/static/assets/ado/ado_bust_dark.png"); // versi mode gelap: rumus/kalkulator di atas kepala jadi putih
+loadAdoAsset("face","/static/assets/ado/ado_face.png");
+loadAdoAsset("faceDark","/static/assets/ado/ado_face_dark.png"); // idem, buat avatar profil mini
+loadAdoAsset("angry","/static/assets/ado/ado_angry.png");
+loadAdoAsset("hero","/static/assets/ado/ado_hero.png");
+loadAdoAsset("pixelGame","/static/assets/ado/ado_pixel_game.png");
+loadAdoAsset("pixelCur","/static/assets/ado/ado_pixel_cursor.png");
+loadAdoAsset("curSmile","/static/assets/ado/ado_smile.png");   // kursor idle/hover — ekspresi senyum
+loadAdoAsset("curPout","/static/assets/ado/ado_pout.png");     // kursor klik — ekspresi manyun
+loadAdoAsset("logoMark","/static/assets/ado/ado_logo.png");    // logo sidebar (wordmark "ado'sbi")
+loadAdoAsset("wiSmile","/static/assets/ado/ado_wi_smile.png"); // ekspresi What-If: bobot pas
+loadAdoAsset("wiPout","/static/assets/ado/ado_wi_pout.png");   // ekspresi What-If: bobot belum pas
+loadAdoAsset("wiAngry","/static/assets/ado/ado_wi_angry.png"); // ekspresi What-If: bobot kelebihan
+loadAdoAsset("onboard","/static/assets/ado/ado_onboard.png");  // mascot di tour/onboarding — full body, biar HD & jelas
+
+// Setup canvas beresolusi tinggi (HD) — backing buffer digandakan sesuai
+// devicePixelRatio (minimal 2x) supaya gambar foto Ado nggak buram/pecah di
+// layar retina/HiDPI, sementara ukuran tampilnya di layar tetap sama.
+function hiDPICanvas(canvas,cssW,cssH){
+  const dpr=Math.max(window.devicePixelRatio||1,2);
+  canvas.width=Math.round(cssW*dpr);
+  canvas.height=Math.round(cssH*dpr);
+  canvas.style.width=cssW+"px";
+  canvas.style.height=cssH+"px";
+  const ctx=canvas.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return ctx;
+}
+
+function drawContain(ctx,img,cw,ch,pad,smoothing){
+  if(pad===undefined)pad=0;
+  if(smoothing===undefined)smoothing=true;
+  if(!img.complete||!img.naturalWidth){return false;}
+  ctx.imageSmoothingEnabled=smoothing;
+  const availW=cw-pad*2, availH=ch-pad*2;
+  const scale=Math.min(availW/img.naturalWidth, availH/img.naturalHeight);
+  const w=img.naturalWidth*scale, h=img.naturalHeight*scale;
+  ctx.drawImage(img,(cw-w)/2,(ch-h)/2,w,h);
+  return true;
+}
 
 // STATE
 let kriteriaList=[], alternatifList=[], matriksNilai={};
 let lastHasil=null, lastRiwayat=null, allRiwayat=[];
 let currentUser=null, pbiToken=null;
 let chartHasil=null, chartRiw=null, chartWI=null;
-let wiData=null, isDark=true;
+let wiData=null, isDark=true, _lastProfileState="anon";
 
 // DEFAULT DATA
 const DEF_K=[
@@ -19,11 +85,30 @@ const DEF_A=[{nama:"Attack on Titan"},{nama:"Demon Slayer"},{nama:"Jujutsu Kaise
 const DEF_M=[[9.5,9.0,9.2,15],[9.0,9.8,9.5,13],[8.8,9.5,8.7,13],[8.5,8.8,8.5,10],[9.2,9.0,9.0,12]];
 
 // ===== TOAST =====
+// Catatan: toast TIDAK lagi hilang otomatis (dulu fade-out sendiri abis 3.2 detik,
+// keliatan jelek kalau lagi nunjukkin hasil hitung/simulasi/riwayat). Sekarang toast
+// tetap nongol sampai usernya sendiri yang klik tombol ✕ — tetap interaktif, tapi
+// visualnya nggak ujug-ujug menghilang.
 function toast(msg,type=""){
   const t=document.getElementById("toast");
-  t.textContent=msg; t.className="toast "+type+" show";
-  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),3200);
+  document.getElementById("toast-text").textContent=msg;
+  t.className="toast "+type+" show";
+  const icon=document.getElementById("toast-icon");
+  if(type==="error"||type==="success"){
+    icon.style.display="block";
+    const ix=hiDPICanvas(icon,28,28);
+    ix.save();ix.beginPath();ix.arc(14,14,14,0,Math.PI*2);ix.clip();
+    ix.fillStyle=isDark?"#1c2a45":"#e8eeff";ix.fillRect(0,0,28,28);
+    const img=type==="error"?ADO_IMG.angry:ADO_IMG.curSmile;
+    drawContain(ix,img,28,28,1);
+    ix.restore();
+  } else {
+    icon.style.display="none";
+  }
 }
+document.getElementById("toast-close").addEventListener("click",()=>{
+  document.getElementById("toast").classList.remove("show");
+});
 
 // ===== THEME =====
 function applyTheme(dark){
@@ -31,6 +116,7 @@ function applyTheme(dark){
   document.documentElement.setAttribute("data-theme",dark?"dark":"light");
   document.getElementById("theme-icon").textContent=dark?"🌙":"☀️";
   localStorage.setItem("ado-theme",dark?"dark":"light");
+  if(typeof renderProfileCanvas==="function")renderProfileCanvas(_lastProfileState);
 }
 document.getElementById("theme-toggle").addEventListener("click",()=>applyTheme(!isDark));
 applyTheme(localStorage.getItem("ado-theme")!=="light");
@@ -71,6 +157,7 @@ document.addEventListener("click",e=>{if(!pdEl.contains(e.target)&&e.target!==do
 
 // ===== AUTH =====
 function renderProfileCanvas(state){
+  _lastProfileState=state;
   const c=document.getElementById("profile-canvas"), x=c.getContext("2d");
   x.clearRect(0,0,32,32);
   if(state==="anon"){
@@ -87,14 +174,17 @@ function renderProfileCanvas(state){
   }
 }
 
-function drawMiniChibi(ctx,cx,cy,r,mood){
-  ctx.fillStyle="#ffe4c4";ctx.beginPath();ctx.arc(cx,cy-r*.1,r*.7,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle="#2d1b69";ctx.beginPath();ctx.ellipse(cx,cy-r*.7,r*.7,r*.35,0,Math.PI,Math.PI*2);ctx.fill();
-  ctx.fillStyle="#1a1040";
-  ctx.beginPath();ctx.arc(cx-r*.3,cy-r*.15,r*.2,0,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.arc(cx+r*.3,cy-r*.15,r*.2,0,Math.PI*2);ctx.fill();
-  if(mood==="happy"){ctx.strokeStyle="#c0392b";ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(cx,cy+r*.15,r*.25,0.1,Math.PI-.1);ctx.stroke();}
-  else if(mood==="star"){ctx.fillStyle="#fbbf24";ctx.beginPath();ctx.arc(cx,cy+r*.15,r*.2,0,Math.PI*2);ctx.fill();}
+function drawMiniChibi(ctx,cx,cy,r){
+  ctx.save();
+  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.clip();
+  const img=isDark?ADO_IMG.faceDark:ADO_IMG.face;
+  if(img&&img.complete&&img.naturalWidth){
+    ctx.imageSmoothingEnabled=true;
+    const scale=Math.max((r*3.1)/img.naturalWidth,(r*3.1)/img.naturalHeight);
+    const w=img.naturalWidth*scale,h=img.naturalHeight*scale;
+    ctx.drawImage(img,cx-w/2,cy-h/2+r*.18,w,h);
+  }
+  ctx.restore();
 }
 
 function setLoggedIn(name,email,provider){
@@ -104,7 +194,7 @@ function setLoggedIn(name,email,provider){
   document.getElementById("pd-name").textContent=name;
   document.getElementById("pd-email").textContent=email;
   if(provider==="microsoft"){
-    pbiToken="SIM_"+Date.now();
+    pbiToken="pbi_"+Date.now();
     document.getElementById("pbi-login-area").style.display="none";
     document.getElementById("pbi-area").style.display="block";
     document.getElementById("pbi-uname").textContent=name;
@@ -130,13 +220,43 @@ function setLoggedOut(){
   renderProfileCanvas("anon");toast("Berhasil logout.","");
 }
 function doLogin(provider){
-  const n=prompt(`Simulasi ${provider} Login\nNama:`),e=prompt("Email:");
-  if(n&&e){setLoggedIn(n,e,provider);pdEl.style.display="none";}
+  window.location.href = provider==="google" ? "/auth/google/login" : "/auth/microsoft/login";
 }
-document.getElementById("pd-google").addEventListener("click",()=>doLogin("Google"));
-document.getElementById("pd-ms").addEventListener("click",()=>doLogin("Microsoft"));
-document.getElementById("pbi-ms-login").addEventListener("click",()=>doLogin("Microsoft"));
-document.getElementById("pd-logout").addEventListener("click",()=>{setLoggedOut();pdEl.style.display="none";});
+document.getElementById("pd-google").addEventListener("click",()=>doLogin("google"));
+document.getElementById("pd-ms").addEventListener("click",()=>doLogin("microsoft"));
+document.getElementById("pbi-ms-login").addEventListener("click",()=>doLogin("microsoft"));
+document.getElementById("pd-logout").addEventListener("click",async()=>{
+  try{await fetch("/auth/logout",{method:"POST"});}catch{}
+  setLoggedOut();pdEl.style.display="none";
+});
+
+async function checkAuthSession(){
+  try{
+    const r=await fetch("/auth/me");
+    const d=await r.json();
+    if(d.logged_in){
+      setLoggedIn(d.name||d.email,d.email,d.provider);
+      if(d.provider==="microsoft"&&d.pbi_connected){
+        document.getElementById("pbi-login-area").style.display="none";
+        document.getElementById("pbi-area").style.display="block";
+        document.getElementById("pbi-uname").textContent=d.name||d.email;
+        document.getElementById("pbi-dot").className="pdot on";
+        document.getElementById("pbi-stxt").textContent="Terhubung ke Power BI";
+      }
+    }
+  }catch{}
+}
+(function handleAuthRedirectParams(){
+  const p=new URLSearchParams(location.search);
+  if(p.get("login_success")){toast("Login berhasil \u2713","success");}
+  if(p.get("login_error")){toast(decodeURIComponent(p.get("login_error")).replace(/\+/g," "),"error");}
+  if(p.has("login_success")||p.has("login_error")){
+    p.delete("login_success");p.delete("login_error");
+    const qs=p.toString();
+    history.replaceState({},"",location.pathname+(qs?`?${qs}`:""));
+  }
+})();
+checkAuthSession();
 document.getElementById("pd-history").addEventListener("click",()=>{
   document.querySelector('.nav-item[data-tab="riwayat"]').click();pdEl.style.display="none";
 });
@@ -186,7 +306,9 @@ function renderChart(canvasId,hasil,ref){
   const c=document.getElementById(canvasId);if(!c)return null;
   if(ref)ref.destroy();
   const colors=hasil.map(h=>h.ranking===1?"rgba(251,191,36,.8)":h.ranking===2?"rgba(203,213,225,.7)":h.ranking===3?"rgba(205,133,63,.7)":"rgba(108,142,255,.65)");
-  return new Chart(c,{type:"bar",data:{labels:hasil.map(h=>h.alternatif_nama),datasets:[{label:"Skor",data:hasil.map(h=>h.skor),backgroundColor:colors,borderColor:colors.map(c=>c.replace(/[\d.]+\)$/,"1)")),borderWidth:1.5,borderRadius:5}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>" "+ctx.parsed.y.toFixed(4)}}},scales:{x:{ticks:{color:"#94a3b8",font:{size:10.5}},grid:{color:"rgba(255,255,255,0.04)"}},y:{ticks:{color:"#94a3b8",font:{size:10.5}},grid:{color:"rgba(255,255,255,0.05)"},beginAtZero:true}}}});
+  // responsive:false -> ukuran chart TETAP, nggak auto ngecil/gedein sendiri pas layout berubah dikit.
+  // Kalau mau resize, atur manual lewat atribut width/height canvas di index.html.
+  return new Chart(c,{type:"bar",data:{labels:hasil.map(h=>h.alternatif_nama),datasets:[{label:"Skor",data:hasil.map(h=>h.skor),backgroundColor:colors,borderColor:colors.map(c=>c.replace(/[\d.]+\)$/,"1)")),borderWidth:1.5,borderRadius:5}]},options:{responsive:false,devicePixelRatio:Math.max(window.devicePixelRatio||1,2),plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>" "+ctx.parsed.y.toFixed(4)}}},scales:{x:{ticks:{color:"#94a3b8",font:{size:10.5}},grid:{color:"rgba(255,255,255,0.04)"}},y:{ticks:{color:"#94a3b8",font:{size:10.5}},grid:{color:"rgba(255,255,255,0.05)"},beginAtZero:true}}}});
 }
 
 // ===== KRITERIA =====
@@ -263,7 +385,7 @@ document.getElementById("btn-hitung").addEventListener("click",async()=>{
   try{
     let data;
     try{
-      const r=await fetch(`${API}/api/studi-kasus`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      const r=await apiFetch(`${API}/api/studi-kasus`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
       data=await r.json();if(!r.ok)throw new Error(data.detail||"Error");
     }catch(se){
       const hasil=calcAndRank(mat2d,kritDict,metode,alternatifList.map(a=>a.nama));
@@ -286,9 +408,18 @@ async function loadRiwayat(){
   const tb=document.querySelector("#tbl-riwayat tbody");
   tb.innerHTML='<tr><td colspan="4" class="tdc">Memuat...</td></tr>';
   try{
-    const r=await fetch(`${API}/api/studi-kasus`),data=await r.json();
+    const r=await apiFetch(`${API}/api/studi-kasus`),data=await r.json();
     allRiwayat=data;tb.innerHTML="";
-    if(!data.length){tb.innerHTML='<tr><td colspan="4" class="tdc">Belum ada studi kasus.</td></tr>';return;}
+    if(!data.length){
+      tb.innerHTML=`<tr><td colspan="4"><div class="empty-state">
+        <canvas id="empty-chibi" width="72" height="72"></canvas>
+        <div class="empty-state-title">Belum ada studi kasus</div>
+        <div class="empty-state-sub">Yuk mulai analisis pertamamu di tab "Studi Kasus Baru"~</div>
+      </div></td></tr>`;
+      const ec=document.getElementById("empty-chibi"),ex=hiDPICanvas(ec,72,72);
+      drawContain(ex,ADO_IMG.curPout,72,72,2);
+      return;
+    }
     data.forEach(s=>{
       const tr=document.createElement("tr");
       const tgl=new Date(s.dibuat_pada).toLocaleString("id-ID");
@@ -302,7 +433,7 @@ async function loadRiwayat(){
 document.querySelector("#tbl-riwayat tbody").addEventListener("click",async e=>{
   if(e.target.dataset.a==="lihat"){
     try{
-      const r=await fetch(`${API}/api/studi-kasus/${e.target.dataset.id}`),data=await r.json();
+      const r=await apiFetch(`${API}/api/studi-kasus/${e.target.dataset.id}`),data=await r.json();
       lastRiwayat=data;
       document.getElementById("riwayat-detail").style.display="block";
       document.getElementById("riwayat-title").textContent=`${data.nama} — ${data.metode}`;
@@ -315,7 +446,13 @@ document.querySelector("#tbl-riwayat tbody").addEventListener("click",async e=>{
 document.getElementById("btn-refresh").addEventListener("click",loadRiwayat);
 
 // ===== WHAT-IF =====
-function fillWISelect(){
+async function fillWISelect(){
+  // dulu ini cuma baca allRiwayat (yang cuma keisi kalau tab Riwayat udah pernah dibuka).
+  // sekarang fetch sendiri kalau datanya belum ada, jadi What-If nggak perlu nunggu tab Riwayat.
+  if(!allRiwayat.length){
+    try{const r=await apiFetch(`${API}/api/studi-kasus`);allRiwayat=await r.json();}
+    catch(err){/* biarin kosong, biar user tetep bisa liat pesan "belum ada data" di select */}
+  }
   const s=document.getElementById("wi-sel"),cur=s.value;
   s.innerHTML='<option value="">-- Pilih --</option>';
   allRiwayat.forEach(x=>{const o=document.createElement("option");o.value=x.id;o.textContent=`${x.nama} (${x.metode})`;s.appendChild(o);});
@@ -323,7 +460,7 @@ function fillWISelect(){
 }
 document.getElementById("wi-sel").addEventListener("change",async function(){
   const id=this.value;if(!id){wiData=null;document.getElementById("wi-sliders").innerHTML="";return;}
-  try{const r=await fetch(`${API}/api/studi-kasus/${id}`);wiData=await r.json();buildWISliders();}
+  try{const r=await apiFetch(`${API}/api/studi-kasus/${id}`);wiData=await r.json();buildWISliders();}
   catch(err){toast("Gagal load: "+err.message,"error");}
 });
 function buildWISliders(){
@@ -338,6 +475,17 @@ function buildWISliders(){
   });
   updateWIBar();
 }
+// ===== WHAT-IF MASCOT (reaksi Ado, selalu ada, ganti ekspresi sesuai total bobot) =====
+const wiChibiC=document.getElementById("wi-chibi"),wiChibiX=hiDPICanvas(wiChibiC,52,52);
+let _lastWIMood="neutral";
+function drawWIChibi(mood){
+  wiChibiX.clearRect(0,0,52,52);
+  const img=mood==="good"?ADO_IMG.wiSmile:mood==="over"?ADO_IMG.wiAngry:ADO_IMG.wiPout;
+  drawContain(wiChibiX,img,52,52,3);
+}
+drawWIChibi("neutral");
+[ADO_IMG.wiSmile,ADO_IMG.wiAngry,ADO_IMG.wiPout].forEach(img=>img.addEventListener("load",()=>drawWIChibi(_lastWIMood)));
+
 function updateWIBar(){
   if(!wiData?.kriteria)return;
   const vals=wiData.kriteria.map((_,i)=>{const s=document.getElementById(`ws-${i}`);return s?parseFloat(s.value)||0:0;});
@@ -347,6 +495,10 @@ function updateWIBar(){
   f.style.width=Math.min(total*100,100)+"%";v.textContent=total.toFixed(2);
   const g=Math.abs(total-1)<.01,o=total>1.01;
   f.className="bbar-fill"+(g?" good":o?" over":"");v.className="bval"+(g?" good":o?" over":"");
+  const mood=g?"good":o?"over":"neutral";
+  _lastWIMood=mood;drawWIChibi(mood);
+  const msg=document.getElementById("wi-chibi-msg");
+  if(msg)msg.textContent=g?"Pas banget, siap disimulasikan!":o?"Kelebihan tuh, kurangin dikit~":"Atur sampai totalnya 1.0 ya~";
 }
 document.getElementById("btn-wi").addEventListener("click",async()=>{
   if(!wiData){toast("Pilih studi kasus dulu!","error");return;}
@@ -355,7 +507,7 @@ document.getElementById("btn-wi").addEventListener("click",async()=>{
   const total=baru.reduce((s,v)=>s+v,0);
   if(Math.abs(total-1)>.01){toast(`Total bobot harus 1.0 (${total.toFixed(2)})`,"error");return;}
   try{
-    const r=await fetch(`${API}/api/studi-kasus/${wiData.id}`),full=await r.json();
+    const r=await apiFetch(`${API}/api/studi-kasus/${wiData.id}`),full=await r.json();
     const nA=(full.alternatif||[]).length,nK=(full.kriteria||[]).length;
     const mat=Array.from({length:nA},(_,ai)=>Array.from({length:nK},(_,ki)=>{const n=(full.nilai||[]).find(x=>x.alternatif_index===ai&&x.kriteria_index===ki);return n?n.nilai:0;}));
     const kd=krit.map((k,i)=>({bobot:baru[i],tipe:k.tipe}));
@@ -388,9 +540,9 @@ document.getElementById("exp-xlsx-riw").addEventListener("click",()=>{if(!lastRi
 
 async function expAll(fmt){
   try{
-    const r=await fetch(`${API}/api/studi-kasus`),list=await r.json();
+    const r=await apiFetch(`${API}/api/studi-kasus`),list=await r.json();
     if(!list.length){toast("Belum ada data.","error");return;}
-    const details=await Promise.all(list.map(s=>fetch(`${API}/api/studi-kasus/${s.id}`).then(r=>r.json())));
+    const details=await Promise.all(list.map(s=>apiFetch(`${API}/api/studi-kasus/${s.id}`).then(r=>r.json())));
     if(fmt==="csv"){
       const rows=[["ID","Nama","Metode","Dibuat","Ranking","Alternatif","Skor"]];
       details.forEach(d=>d.hasil.forEach(h=>rows.push([d.id,`"${d.nama}"`,d.metode,d.dibuat_pada,h.ranking,`"${h.alternatif_nama}"`,h.skor.toFixed(6)])));
@@ -413,9 +565,9 @@ document.getElementById("btn-push-pbi").addEventListener("click",async()=>{
   if(!pbiToken){sm.className="smsg error";sm.textContent="Login Microsoft dulu.";return;}
   sm.className="smsg";sm.textContent="Menyiapkan...";
   try{
-    const r=await fetch(`${API}/api/studi-kasus`),list=await r.json();
+    const r=await apiFetch(`${API}/api/studi-kasus`),list=await r.json();
     if(!list.length)throw new Error("Belum ada data.");
-    const details=await Promise.all(list.map(s=>fetch(`${API}/api/studi-kasus/${s.id}`).then(r=>r.json())));
+    const details=await Promise.all(list.map(s=>apiFetch(`${API}/api/studi-kasus/${s.id}`).then(r=>r.json())));
     const rows=details.flatMap(d=>d.hasil.map(h=>({StudiKasusId:d.id,Nama:d.nama,Metode:d.metode,Ranking:h.ranking,Alternatif:h.alternatif_nama,Skor:h.skor})));
     sm.className="smsg success";sm.textContent=`[Simulasi] ${rows.length} baris siap → Power BI. Sambungkan Azure App untuk push nyata.`;
     toast(`${rows.length} baris siap untuk Power BI ✓`,"success");
@@ -439,109 +591,53 @@ document.getElementById("btn-run-test").addEventListener("click",()=>{
   toast(`Test: ${pass}/${total} PASSED ${pass===total?"🎉":""}`,(pass===total?"success":"error"));
 });
 
-// ===== CURSOR CHIBI — CSS custom cursor =====
-// Karakter = kursor. Offscreen canvas 52x52. Hotspot = tengah kepala = (26,26).
-// Digambar sebagai KEPALA BESAR aja biar jelas di ukuran kursor kecil.
+// ===== CURSOR ADO — CSS custom cursor (pakai foto asli, sesuai ekspresi) =====
+// Logika sama seperti sebelumnya (state machine idle/hover/click/celebrate,
+// offscreen canvas -> data URL -> CSS cursor, hotspot di tengah kepala).
+// Bedanya cuma karakternya: sekarang gambar Ado asli, bukan gambar tangan.
+//   idle/hover  -> ado_smile.png  (ekspresi senyum)
+//   click       -> ado_pout.png   (ekspresi manyun, reaksi lucu waktu diklik)
+//   celebrate   -> ado_pixel_cursor.png (jempol pixel, waktu hasil keluar — TETAP
+//                  ADA sampai user berinteraksi lagi, tidak hilang otomatis)
 
-const CUR_W=52, CUR_H=52;
+const CUR_W=56, CUR_H=56;
+const CUR_HD=3; // render kursor 3x lebih tinggi resolusinya (HD/retina), tampil tetap 56x56 di layar
 const offC=document.createElement("canvas");
-offC.width=CUR_W; offC.height=CUR_H;
+offC.width=CUR_W*CUR_HD; offC.height=CUR_H*CUR_HD;
 const offX=offC.getContext("2d");
+offX.setTransform(CUR_HD,0,0,CUR_HD,0,0); // semua koordinat gambar tetap ditulis dalam skala 56x56 (logis)
 
-let cState="idle", cFrame=0, celebTimer=null;
-function triggerCelebrate(){cState="celebrate";clearTimeout(celebTimer);celebTimer=setTimeout(()=>cState="idle",3000);}
+let cState="idle";
+function triggerCelebrate(){
+  cState="celebrate";drawCursorFrame("celebrate");applyCursorCSS();
+}
 
-// Sembunyikan canvas HTML lama kalau masih ada
 const oldCurCanvas=document.getElementById("cursor-canvas");
 if(oldCurCanvas) oldCurCanvas.style.display="none";
 
-function drawCursorFrame(state, frame){
+function drawCursorFrame(state){
   offX.clearRect(0,0,CUR_W,CUR_H);
-  const cx=CUR_W/2, cy=CUR_H/2+2;
+  const cx=CUR_W/2, cy=CUR_H/2+1;
 
-  // === GLOW aura tipis di belakang ===
-  const aura=offX.createRadialGradient(cx,cy,4,cx,cy,23);
-  aura.addColorStop(0,"rgba(108,142,255,0.25)");
+  const aura=offX.createRadialGradient(cx,cy,4,cx,cy,26);
+  aura.addColorStop(0,"rgba(108,142,255,0.28)");
   aura.addColorStop(1,"rgba(108,142,255,0)");
   offX.fillStyle=aura;
-  offX.beginPath();offX.arc(cx,cy,23,0,Math.PI*2);offX.fill();
+  offX.beginPath();offX.arc(cx,cy,26,0,Math.PI*2);offX.fill();
 
-  // === KEPALA ===
-  const skinColor = state==="click"?"#f9a8d4" : state==="celebrate"?"#fde68a" : "#ffe4c4";
-  offX.fillStyle=skinColor;
-  offX.beginPath();offX.ellipse(cx,cy+1,16,15,0,0,Math.PI*2);offX.fill();
+  let img=ADO_IMG.curSmile, pad=3, smooth=true;
+  if(state==="click"){img=ADO_IMG.curPout;pad=4;}
+  else if(state==="celebrate"){img=ADO_IMG.pixelCur;pad=6;smooth=false;}
+  drawContain(offX,img,CUR_W,CUR_H,pad,smooth);
 
-  // === RAMBUT ATAS ===
-  offX.fillStyle="#2d1b69";
-  offX.beginPath();offX.ellipse(cx,cy-12,16,6,0,Math.PI,Math.PI*2);offX.fill();
-  // rambut samping kiri
-  offX.beginPath();offX.ellipse(cx-14,cy-7,5,8.5,-0.35,0,Math.PI*2);offX.fill();
-  // rambut samping kanan
-  offX.beginPath();offX.ellipse(cx+14,cy-7,5,8.5,0.35,0,Math.PI*2);offX.fill();
-
-  // === MATA ===
-  if(state==="click"){
-    // mata X
-    offX.strokeStyle="#2d1b69"; offX.lineWidth=2;
-    offX.beginPath();offX.moveTo(cx-9,cy-2);offX.lineTo(cx-4,cy+3);offX.stroke();
-    offX.beginPath();offX.moveTo(cx-4,cy-2);offX.lineTo(cx-9,cy+3);offX.stroke();
-    offX.beginPath();offX.moveTo(cx+4,cy-2);offX.lineTo(cx+9,cy+3);offX.stroke();
-    offX.beginPath();offX.moveTo(cx+9,cy-2);offX.lineTo(cx+4,cy+3);offX.stroke();
-  } else if(state==="celebrate"){
-    // mata bintang / bulan sabit
-    offX.fillStyle="#fbbf24";
-    offX.beginPath();offX.arc(cx-6,cy,3.5,0,Math.PI*2);offX.fill();
-    offX.beginPath();offX.arc(cx+6,cy,3.5,0,Math.PI*2);offX.fill();
-    offX.fillStyle=skinColor;
-    offX.beginPath();offX.arc(cx-4.5,cy-1,2.5,0,Math.PI*2);offX.fill();
-    offX.beginPath();offX.arc(cx+7.5,cy-1,2.5,0,Math.PI*2);offX.fill();
-  } else {
-    // mata normal + kedip
-    const blink=frame%140<5;
-    offX.fillStyle="#2d1b69";
-    offX.beginPath();offX.ellipse(cx-6,cy,3,blink?0.5:3.8,0,0,Math.PI*2);offX.fill();
-    offX.beginPath();offX.ellipse(cx+6,cy,3,blink?0.5:3.8,0,0,Math.PI*2);offX.fill();
-    if(!blink){
-      // sorot mata putih kecil
-      offX.fillStyle="#ffffff";
-      offX.beginPath();offX.arc(cx-4.8,cy-1.2,1.2,0,Math.PI*2);offX.fill();
-      offX.beginPath();offX.arc(cx+7.2,cy-1.2,1.2,0,Math.PI*2);offX.fill();
-    }
-  }
-
-  // === MULUT ===
-  offX.strokeStyle="#c0392b"; offX.lineWidth=1.5; offX.lineCap="round";
-  offX.beginPath();
-  if(state==="hover"||state==="celebrate"){
-    // senyum lebar
-    offX.arc(cx,cy+6,5,0.2,Math.PI-0.2);
-  } else if(state==="click"){
-    // mulut O kaget
-    offX.ellipse(cx,cy+7,3,3.5,0,0,Math.PI*2);
-    offX.fillStyle="rgba(192,57,43,0.5)"; offX.fill();
-  } else {
-    // garis tipis
-    offX.moveTo(cx-4,cy+7); offX.lineTo(cx+4,cy+7);
-  }
-  offX.stroke();
-
-  // === PIPI BLUSH ===
-  if(state==="hover"||state==="celebrate"||state==="click"){
-    offX.fillStyle="rgba(255,100,100,0.22)";
-    offX.beginPath();offX.ellipse(cx-14,cy+4,4.5,3,0,0,Math.PI*2);offX.fill();
-    offX.beginPath();offX.ellipse(cx+14,cy+4,4.5,3,0,0,Math.PI*2);offX.fill();
-  }
-
-  // === SPARKLE CELEBRATE ===
   if(state==="celebrate"){
     const colors=["rgba(251,191,36,.95)","rgba(192,132,252,.9)","rgba(108,142,255,.9)"];
-    [[cx+20,cy-18,0],[cx-20,cy-16,2.1],[cx+18,cy+16,4.2]].forEach(([sx,sy,ph],si)=>{
-      const a=frame*.07+ph;
-      offX.save();offX.translate(sx+Math.cos(a)*2,sy+Math.sin(a)*2);
+    [[cx+22,cy-20],[cx-22,cy-18],[cx+20,cy+18]].forEach(([sx,sy],si)=>{
+      offX.save();offX.translate(sx,sy);
       offX.fillStyle=colors[si%colors.length];
       offX.beginPath();
       for(let p=0;p<5;p++){
-        offX.lineTo(Math.cos((p*4*Math.PI/5)-Math.PI/2)*5,Math.sin((p*4*Math.PI/5)-Math.PI/2)*5);
+        offX.lineTo(Math.cos((p*4*Math.PI/5)-Math.PI/2)*4.5,Math.sin((p*4*Math.PI/5)-Math.PI/2)*4.5);
         offX.lineTo(Math.cos((p*4*Math.PI/5+2*Math.PI/5)-Math.PI/2)*2,Math.sin((p*4*Math.PI/5+2*Math.PI/5)-Math.PI/2)*2);
       }
       offX.closePath();offX.fill();offX.restore();
@@ -549,97 +645,67 @@ function drawCursorFrame(state, frame){
   }
 }
 
-// Terapkan cursor ke body + semua elemen agar tidak pernah balik ke default
 function applyCursorCSS(){
   const dataURL=offC.toDataURL();
-  // hotspot 26,26 = tengah kepala = titik klik
-  const cur=`url(${dataURL}) 26 26, pointer`;
+  const hs=CUR_W/2; // hotspot dalam satuan logis (28,28), sama walau gambar sumbernya HD
+  // image-set() bikin browser pakai gambar resolusi tinggi tapi TAMPIL di ukuran 56x56 biasa
+  // (retina-crisp). url() polos di akhir cuma fallback browser lama.
+  const cur=`-webkit-image-set(url(${dataURL}) ${CUR_HD}x) ${hs} ${hs}, image-set(url(${dataURL}) ${CUR_HD}x) ${hs} ${hs}, url(${dataURL}) ${hs} ${hs}, pointer`;
   document.body.style.setProperty("cursor", cur, "important");
-  // Inject/update style tag global — override semua cursor:pointer di CSS
   let sheet=document.getElementById("_cur_style");
   if(!sheet){sheet=document.createElement("style");sheet.id="_cur_style";document.head.appendChild(sheet);}
-  sheet.textContent=`*{cursor:url(${dataURL}) 26 26, pointer !important}`;
+  sheet.textContent=`*{cursor:${cur} !important}`;
 }
 
-// Update state dari interaksi — TIDAK mengubah cursor, loop yang handle
-document.addEventListener("mousedown",()=>{if(cState!=="celebrate"){cState="click";drawCursorFrame("click",cFrame);applyCursorCSS();}});
-document.addEventListener("mouseup",()=>{if(cState==="click"){cState="idle";drawCursorFrame("idle",cFrame);applyCursorCSS();}});
+// Catatan: klik/hover sesudah "celebrate" akan otomatis ganti ke state click/hover
+// seperti biasa (jadi celebrate baru berhenti kalau memang ada interaksi baru,
+// bukan hilang sendiri karena timer).
+document.addEventListener("mousedown",()=>{cState="click";drawCursorFrame("click");applyCursorCSS();});
+document.addEventListener("mouseup",()=>{if(cState==="click"){cState="idle";drawCursorFrame("idle");applyCursorCSS();}});
 document.addEventListener("mouseover",e=>{
   const isInteractive=e.target.closest("button,a,input,select,textarea,.nav-item,.btn-ghost,.btn-primary,.btn-remove,.profile-btn");
-  if(cState!=="click"&&cState!=="celebrate"){
+  if(cState!=="click"){
     const next=isInteractive?"hover":"idle";
-    if(next!==cState){cState=next;drawCursorFrame(cState,cFrame);applyCursorCSS();}
+    if(next!==cState){cState=next;drawCursorFrame(cState);applyCursorCSS();}
   }
 });
 
-// Loop animasi: update tiap beberapa frame untuk blink & kaki jalan
-let lastBlink=-1;
-function cursorLoop(){
-  cFrame++;
-  const blinkPhase=Math.floor(cFrame/6);
-  if(blinkPhase!==lastBlink&&(cState==="idle"||cState==="hover")){
-    drawCursorFrame(cState,cFrame);
-    applyCursorCSS();
-    lastBlink=blinkPhase;
-  }
-  requestAnimationFrame(cursorLoop);
-}
-// Apply sekali di awal sebelum user gerak
-drawCursorFrame("idle",0);
-applyCursorCSS();
-cursorLoop();
+// Gambar sekali di awal, lalu ulang begitu tiap foto Ado selesai dimuat browser
+drawCursorFrame("idle");applyCursorCSS();
+[ADO_IMG.curSmile,ADO_IMG.curPout,ADO_IMG.pixelCur].forEach(img=>{
+  img.addEventListener("load",()=>{drawCursorFrame(cState);applyCursorCSS();});
+});
 
-// ===== SIDEBAR CHIBI =====
-const sbC=document.getElementById("sb-chibi"),sbX=sbC.getContext("2d");
+// ===== SIDEBAR CHIBI (foto asli Ado, bukan gambar tangan) =====
+const sbC=document.getElementById("sb-chibi"),sbX=hiDPICanvas(sbC,90,90);
 let sbF=0;
 function drawSBChibi(){
   sbX.clearRect(0,0,90,90);
-  const bob=Math.sin(sbF*.04)*4,cx=45,cy=52+bob;
-  const grad=sbX.createRadialGradient(cx,cy,5,cx,cy,35);
-  grad.addColorStop(0,"rgba(108,142,255,.1)");grad.addColorStop(1,"transparent");
-  sbX.fillStyle=grad;sbX.beginPath();sbX.ellipse(cx,cy,35,35,0,0,Math.PI*2);sbX.fill();
-  sbX.fillStyle="#1e3a5f";sbX.beginPath();sbX.ellipse(cx,cy+16,12,14,0,0,Math.PI*2);sbX.fill();
-  sbX.fillStyle="#ffe4c4";sbX.beginPath();sbX.ellipse(cx,cy,15,14,0,0,Math.PI*2);sbX.fill();
-  sbX.fillStyle="#2d1b69";sbX.beginPath();sbX.ellipse(cx,cy-13,15,5.5,0,Math.PI,Math.PI*2);sbX.fill();
-  sbX.beginPath();sbX.ellipse(cx-14,cy-8,4.5,8,-.35,0,Math.PI*2);sbX.fill();
-  sbX.beginPath();sbX.ellipse(cx+14,cy-8,4.5,8,.35,0,Math.PI*2);sbX.fill();
-  sbX.fillStyle="#2d1b69";
-  sbX.beginPath();sbX.ellipse(cx-6,cy-1,3,3.5,0,0,Math.PI*2);sbX.fill();
-  sbX.beginPath();sbX.ellipse(cx+6,cy-1,3,3.5,0,0,Math.PI*2);sbX.fill();
-  sbX.fillStyle="#fff";sbX.beginPath();sbX.arc(cx-5,cy-2,1.2,0,Math.PI*2);sbX.fill();
-  sbX.beginPath();sbX.arc(cx+7,cy-2,1.2,0,Math.PI*2);sbX.fill();
-  sbX.strokeStyle="#c0392b";sbX.lineWidth=1.3;sbX.beginPath();sbX.arc(cx,cy+4,4,.1,Math.PI-.1);sbX.stroke();
-  if(sbF%80<12){sbX.fillStyle="rgba(251,191,36,.9)";sbX.beginPath();sbX.arc(cx+22,cy-24,3,0,Math.PI*2);sbX.fill();}
+  const bob=Math.sin(sbF*.04)*4,cx=45,cy=45+bob;
+  // backdrop solid biar chibi (rambut/baju gelap) nggak nyatu sama sidebar yang gelap
+  sbX.beginPath();sbX.arc(cx,cy,38,0,Math.PI*2);
+  sbX.fillStyle=isDark?"#1c2a45":"#e8eeff";sbX.fill();
+  sbX.strokeStyle=isDark?"#2a3d60":"#b8c4e8";sbX.lineWidth=1.5;sbX.stroke();
+  const grad=sbX.createRadialGradient(cx,cy,5,cx,cy,40);
+  grad.addColorStop(0,"rgba(108,142,255,.16)");grad.addColorStop(1,"transparent");
+  sbX.fillStyle=grad;sbX.beginPath();sbX.ellipse(cx,cy,40,40,0,0,Math.PI*2);sbX.fill();
+  sbX.save();sbX.translate(0,bob);
+  drawContain(sbX,isDark?ADO_IMG.bustDark:ADO_IMG.bust,90,90,6);
+  sbX.restore();
   sbF++;requestAnimationFrame(drawSBChibi);
 }
 drawSBChibi();
 
-// ===== HERO CHIBI =====
-const hC=document.getElementById("hero-chibi"),hX=hC.getContext("2d");
+// ===== HERO CHIBI (foto Ado meluk logo Ado's BI) =====
+const hC=document.getElementById("hero-chibi"),hX=hiDPICanvas(hC,170,170);
 let hF=0;
 function drawHeroChibi(){
   hX.clearRect(0,0,170,170);
-  const bob=Math.sin(hF*.03)*6,cx=85,cy=95+bob;
-  const gr=hX.createRadialGradient(cx,cy,10,cx,cy,65);
-  gr.addColorStop(0,"rgba(108,142,255,.15)");gr.addColorStop(1,"transparent");
-  hX.fillStyle=gr;hX.beginPath();hX.ellipse(cx,cy,65,65,0,0,Math.PI*2);hX.fill();
-  hX.fillStyle="#1e3a5f";hX.beginPath();hX.ellipse(cx,cy+20,17,19,0,0,Math.PI*2);hX.fill();
-  const arm=Math.sin(hF*.06)*.5;
-  hX.strokeStyle="#1e3a5f";hX.lineWidth=8;hX.lineCap="round";
-  hX.beginPath();hX.moveTo(cx-17,cy+9);hX.lineTo(cx-30,cy-2+Math.sin(arm)*10);hX.stroke();
-  hX.beginPath();hX.moveTo(cx+17,cy+9);hX.lineTo(cx+30,cy-2+Math.sin(-arm)*10);hX.stroke();
-  hX.fillStyle="#ffe4c4";hX.beginPath();hX.ellipse(cx,cy-4,21,20,0,0,Math.PI*2);hX.fill();
-  hX.fillStyle="#2d1b69";hX.beginPath();hX.ellipse(cx,cy-21,21,7,0,Math.PI,Math.PI*2);hX.fill();
-  hX.beginPath();hX.ellipse(cx-19,cy-13,5.5,11,-.3,0,Math.PI*2);hX.fill();
-  hX.beginPath();hX.ellipse(cx+19,cy-13,5.5,11,.3,0,Math.PI*2);hX.fill();
-  hX.fillStyle="#2d1b69";hX.beginPath();hX.ellipse(cx-7,cy-4,4,5,0,0,Math.PI*2);hX.fill();
-  hX.beginPath();hX.ellipse(cx+7,cy-4,4,5,0,0,Math.PI*2);hX.fill();
-  hX.fillStyle="#fff";hX.beginPath();hX.ellipse(cx-5.5,cy-5.5,1.5,1.5,0,0,Math.PI*2);hX.fill();
-  hX.beginPath();hX.ellipse(cx+8.5,cy-5.5,1.5,1.5,0,0,Math.PI*2);hX.fill();
-  hX.strokeStyle="#c0392b";hX.lineWidth=1.5;hX.beginPath();hX.arc(cx,cy+3,5,.15,Math.PI-.15);hX.stroke();
-  hX.fillStyle="rgba(255,100,100,.2)";hX.beginPath();hX.ellipse(cx-15,cy+2,5.5,3,0,0,Math.PI*2);hX.fill();
-  hX.beginPath();hX.ellipse(cx+15,cy+2,5.5,3,0,0,Math.PI*2);hX.fill();
-  [[cx-28,cy-32,0],[cx+24,cy-40,.7],[cx+32,cy+2,1.4],[cx-22,cy+14,2.1]].forEach(([sx,sy,ph])=>{
+  const bob=Math.sin(hF*.03)*6,cx=85,cy=85+bob;
+  hX.save();hX.translate(0,bob);
+  drawContain(hX,ADO_IMG.hero,170,170,2);
+  hX.restore();
+  [[cx-38,cy-42,0],[cx+34,cy-50,.7],[cx+42,cy+2,1.4],[cx-32,cy+14,2.1]].forEach(([sx,sy,ph])=>{
     const al=(Math.sin(hF*.05+ph)*.5+.5)*.8;
     hX.fillStyle=`rgba(192,132,252,${al.toFixed(2)})`;hX.beginPath();hX.arc(sx,sy,2.5,0,Math.PI*2);hX.fill();
   });
@@ -647,71 +713,131 @@ function drawHeroChibi(){
 }
 drawHeroChibi();
 
-// ===== LOGO CHIBI =====
-const lgC=document.getElementById("logo-chibi"),lgX=lgC.getContext("2d");
+// ===== LOGO SIDEBAR (pakai logo asli "ado'sbi", wordmark sudah menyatu di gambar) =====
+const LOGO_W=176, LOGO_H=60;
+const lgC=document.getElementById("logo-chibi");
+const lgX=hiDPICanvas(lgC,LOGO_W,LOGO_H);
 let lgF=0;
 function drawLogoChibi(){
-  lgX.clearRect(0,0,36,36);
-  const cx=18,cy=20;
-  lgX.fillStyle="#ffe4c4";lgX.beginPath();lgX.ellipse(cx,cy-1,9,8,0,0,Math.PI*2);lgX.fill();
-  lgX.fillStyle="#2d1b69";lgX.beginPath();lgX.ellipse(cx,cy-9,9,3.5,0,Math.PI,Math.PI*2);lgX.fill();
-  lgX.fillStyle="#2d1b69";
-  lgX.beginPath();lgX.arc(cx-4,cy-1,2,0,Math.PI*2);lgX.fill();
-  lgX.beginPath();lgX.arc(cx+4,cy-1,2,0,Math.PI*2);lgX.fill();
-  const blink=lgF%100<4;
-  if(blink){lgX.fillStyle="#ffe4c4";lgX.fillRect(cx-6,cy-3,5,2);lgX.fillRect(cx+1,cy-3,5,2);}
-  lgX.strokeStyle="#c0392b";lgX.lineWidth=1;lgX.beginPath();lgX.arc(cx,cy+3,2.5,.2,Math.PI-.2);lgX.stroke();
-  if(lgF%60<8){lgX.fillStyle="rgba(108,142,255,.9)";lgX.beginPath();lgX.arc(cx+16,cy-14,2,0,Math.PI*2);lgX.fill();}
+  lgX.clearRect(0,0,LOGO_W,LOGO_H);
+  drawContain(lgX,ADO_IMG.logoMark,LOGO_W,LOGO_H,4); // pad kecil biar logo lebih rapat, ga ada jarak kosong berlebih
   lgF++;requestAnimationFrame(drawLogoChibi);
 }
 drawLogoChibi();
 
-// ===== GAME (running character) =====
+// ===== GAME (karakter pixel Ado, lebih banyak tantangan) =====
+// Perubahan dari versi lama:
+//  - Karakter = ado_pixel_game.png (bukan gambar tangan lagi), digambar blocky/nearest.
+//  - Bukan cuma lompat: ada juga batu MELAYANG yang harus DITUNDUKKAN (tekan ↓ / S).
+//  - Rintangan digambar sebagai batu bergaya pixel (blok-blok kotak), bukan emoji.
+//  - Kecepatan dibatasi (capped) supaya gamenya nggak jadi kelewat ngebut.
 const gc=document.getElementById("game-canvas"),gx=gc.getContext("2d");
 const GND=54,JV=-12,GRAV=.58,CHX=44;
-let gF=0,gSc=0,chY=GND,chVY=0,jumping=false,obstacles=[],obT=0,obI=120,dead=false,gSpd=3;
-function spawnOb(){const h=10+Math.random()*20;obstacles.push({x:gc.width+10,w:10,h,y:GND-h});}
-function resetGame(){gF=0;gSc=0;chY=GND;chVY=0;jumping=false;obstacles=[];obT=0;obI=120;dead=false;gSpd=3;document.getElementById("gs-val").textContent="0";}
-function gameJump(){if(!jumping){chVY=JV;jumping=true;}}
-gc.addEventListener("click",()=>dead?resetGame():gameJump());
-document.addEventListener("keydown",e=>{if(e.code==="Space"){e.preventDefault();dead?resetGame():gameJump();}});
-function drawGameChar(x,y,f){
-  const r=Math.floor(f/8)%2;
-  gx.fillStyle="#2d1b69";gx.fillRect(x-6,y-20,12,13);
-  gx.fillStyle="#ffe4c4";gx.beginPath();gx.ellipse(x,y-26,8,8,0,0,Math.PI*2);gx.fill();
-  gx.fillStyle="#1e1040";gx.beginPath();gx.ellipse(x,y-32,8,4,0,Math.PI,Math.PI*2);gx.fill();
-  gx.fillStyle="#2d1b69";
-  if(jumping){gx.fillRect(x-6,y-8,5,10);gx.fillRect(x+1,y-8,5,10);}
-  else if(r===0){gx.fillRect(x-6,y-8,5,12);gx.fillRect(x+1,y-8,5,7);}
-  else{gx.fillRect(x-6,y-8,5,7);gx.fillRect(x+1,y-8,5,12);}
-  gx.fillStyle="#2d1b69";gx.beginPath();gx.arc(x-3,y-27,2.5,0,Math.PI*2);gx.fill();gx.beginPath();gx.arc(x+3,y-27,2.5,0,Math.PI*2);gx.fill();
+const DUCK_H=12,STAND_H=20; // tinggi hitbox karakter berdiri vs nunduk
+const SPD_BASE=3, SPD_MAX=7.2; // <-- batas atas kecepatan, biar ga "kecepetan banget"
+let gF=0,gSc=0,chY=GND,chVY=0,jumping=false,ducking=false,obstacles=[],obT=0,obI=115,dead=false,gSpd=SPD_BASE,started=false;
+
+function spawnOb(){
+  // Setelah skor > 120, mulai muncul juga rintangan MELAYANG (harus nunduk).
+  const canFly = gSc>120 && Math.random()<0.38;
+  if(canFly){
+    obstacles.push({x:gc.width+10,w:22,h:14,y:GND-34,type:"fly"});
+  } else if(Math.random()<0.3){
+    // gerombolan 2 batu kecil berdempetan (variasi ritme lompat)
+    const h=10+Math.random()*10;
+    obstacles.push({x:gc.width+10,w:9,h,y:GND-h,type:"rock"});
+    obstacles.push({x:gc.width+24,w:9,h:h+4,y:GND-(h+4),type:"rock"});
+  } else {
+    const h=12+Math.random()*22;
+    obstacles.push({x:gc.width+10,w:13,h,y:GND-h,type:"rock"});
+  }
 }
+function resetGame(){
+  gF=0;gSc=0;chY=GND;chVY=0;jumping=false;ducking=false;obstacles=[];obT=0;obI=115;dead=false;gSpd=SPD_BASE;started=true;
+  document.getElementById("gs-val").textContent="0";
+}
+function gameJump(){if(!jumping&&!ducking){chVY=JV;jumping=true;}}
+gc.addEventListener("click",()=>{
+  if(!started){started=true;return;} // klik pertama cuma mulai gamenya, ga langsung lompat
+  dead?resetGame():gameJump();
+});
+document.addEventListener("keydown",e=>{
+  // JANGAN nyolong tombol Space/Panah kalau usernya lagi ngetik di form/input manapun
+  const tag=(e.target&&e.target.tagName||"").toLowerCase();
+  const isTyping = tag==="input"||tag==="textarea"||tag==="select"||(e.target&&e.target.isContentEditable);
+  if(isTyping)return;
+  if(e.code==="Space"){
+    e.preventDefault();
+    if(!started){started=true;return;} // space pertama cuma mulai gamenya
+    dead?resetGame():gameJump();
+  }
+  else if((e.code==="ArrowDown"||e.code==="KeyS")&&!jumping&&!dead){ducking=true;}
+});
+document.addEventListener("keyup",e=>{
+  if(e.code==="ArrowDown"||e.code==="KeyS"){ducking=false;}
+});
+
+// Batu bergaya pixel: blok-blok kotak kecil, bukan bentuk halus
+function drawPixelRock(x,y,w,h,tone){
+  const cell=Math.max(3,Math.round(Math.min(w,h)/4));
+  const cols=Math.max(2,Math.round(w/cell)), rows=Math.max(2,Math.round(h/cell));
+  const base = tone==="fly" ? ["#8b5cf6","#6d28d9","#c4b5fd"] : ["#94a3b8","#475569","#e2e8f0"];
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      // bentuk agak "acak tapi konsisten" pakai hash sederhana biar tiap batu unik & blocky
+      const seed=(r*31+c*17+Math.floor(x/7))%5;
+      if(seed===0 && (r===0||c===0||c===cols-1)) continue; // gerigi di pinggir
+      const shade = (r+c)%3===0?base[2]:((r+c)%3===1?base[0]:base[1]);
+      gx.fillStyle=shade;
+      gx.fillRect(x+c*cell, y+r*cell, cell-0.5, cell-0.5);
+    }
+  }
+}
+
+function drawGameChar(x,y){
+  const img=ADO_IMG.pixelGame;
+  if(!img.complete||!img.naturalWidth){
+    gx.fillStyle="#2d5fd6";gx.fillRect(x-7,y-24,14,24);return;
+  }
+  gx.imageSmoothingEnabled=false;
+  const h = ducking?24:36;
+  const w = img.naturalWidth*(h/img.naturalHeight);
+  const bob = (!jumping&&!ducking) ? (Math.floor(gF/8)%2===0?0:1.5) : 0;
+  gx.drawImage(img, x-w/2, y-h+bob, w, h);
+}
+
 function gameLoop(){
   const W=gc.width;
   gx.clearRect(0,0,W,gc.height);
   gx.fillStyle=isDark?"#070b14":"#f0f4ff";gx.fillRect(0,0,W,gc.height);
   gx.strokeStyle=isDark?"rgba(108,142,255,.25)":"rgba(74,108,240,.2)";gx.lineWidth=1.5;
   gx.beginPath();gx.moveTo(0,GND+4);gx.lineTo(W,GND+4);gx.stroke();
-  // stars/dots
   gx.fillStyle=isDark?"rgba(255,255,255,.3)":"rgba(100,120,200,.2)";
   for(let s=0;s<6;s++){const sx=(s*157+gF*.25)%W;gx.beginPath();gx.arc(sx,6+s*8,1,0,Math.PI*2);gx.fill();}
-  if(!dead){
-    gF++;gSpd=3+Math.floor(gSc/200)*.4;gSc+=Math.round(gSpd/3);
+  if(started&&!dead){
+    gF++;
+    // kecepatan naik pelan2 sesuai skor tapi DIBATASI di SPD_MAX
+    gSpd=Math.min(SPD_BASE+Math.floor(gSc/220)*.5, SPD_MAX);
+    gSc+=Math.round(gSpd/3);
     document.getElementById("gs-val").textContent=gSc;
     chVY+=GRAV;chY+=chVY;if(chY>=GND){chY=GND;chVY=0;jumping=false;}
-    obT++;if(obT>=obI){spawnOb();obT=0;obI=75+Math.random()*90;}
-    obstacles.forEach(o=>o.x-=gSpd);obstacles=obstacles.filter(o=>o.x>-20);
-    obstacles.forEach(o=>{if(CHX+7>o.x&&CHX-7<o.x+o.w&&chY-2>o.y&&chY-20<o.y+o.h)dead=true;});
+    obT++;if(obT>=obI){spawnOb();obT=0;obI=70+Math.random()*85;}
+    obstacles.forEach(o=>o.x-=gSpd);obstacles=obstacles.filter(o=>o.x>-30);
+    const hitH = ducking?DUCK_H:STAND_H;
+    obstacles.forEach(o=>{
+      if(CHX+8>o.x&&CHX-8<o.x+o.w&&chY-2>o.y&&chY-hitH<o.y+o.h)dead=true;
+    });
   }
-  obstacles.forEach(o=>{
-    gx.fillStyle="#c084fc";gx.fillRect(o.x,o.y,o.w,o.h);
-    gx.font="8px sans-serif";gx.textAlign="center";gx.fillText("👿",o.x+o.w/2,o.y+o.h/2+3);
-  });
-  drawGameChar(CHX,chY,gF);
-  if(dead){
-    gx.fillStyle="rgba(0,0,0,.55)";gx.fillRect(W/2-90,18,180,38);
-    gx.fillStyle="#f87171";gx.font="bold 13px Inter,sans-serif";gx.textAlign="center";gx.fillText(`Game Over! Score: ${gSc}`,W/2,38);
-    gx.fillStyle="#94a3b8";gx.font="10px Inter,sans-serif";gx.fillText("Klik / SPACE untuk main lagi",W/2,51);
+  obstacles.forEach(o=>drawPixelRock(o.x,o.y,o.w,o.h,o.type));
+  drawGameChar(CHX,chY);
+  if(!started){
+    gx.fillStyle="rgba(0,0,0,.5)";gx.fillRect(W/2-100,16,200,44);
+    gx.fillStyle="#e2e8f0";gx.font="bold 13px Inter,sans-serif";gx.textAlign="center";gx.fillText("Klik / SPACE buat mulai~",W/2,36);
+    gx.fillStyle="#94a3b8";gx.font="9.5px Inter,sans-serif";gx.fillText("↓ / S = nunduk pas udah jalan",W/2,49);
+  } else if(dead){
+    gx.fillStyle="rgba(0,0,0,.55)";gx.fillRect(W/2-95,16,190,44);
+    gx.fillStyle="#f87171";gx.font="bold 13px Inter,sans-serif";gx.textAlign="center";gx.fillText(`Game Over! Score: ${gSc}`,W/2,36);
+    gx.fillStyle="#94a3b8";gx.font="9.5px Inter,sans-serif";gx.fillText("Klik / SPACE main lagi  •  ↓ / S = nunduk",W/2,49);
   }
   requestAnimationFrame(gameLoop);
 }
@@ -759,34 +885,17 @@ document.getElementById("onboard-skip").addEventListener("click",endTour);
 document.getElementById("btn-tour").addEventListener("click",startTour);
 
 // Onboard chibi
-const obC=document.getElementById("onboard-chibi"),obX=obC.getContext("2d");
+const obC=document.getElementById("onboard-chibi"),obX=hiDPICanvas(obC,100,110);
 let obF=0;
-function drawOnboardChibi(mood){
+function drawOnboardChibi(){
   obX.clearRect(0,0,100,110);
-  const cx=50,cy=68,bob=Math.sin(obF*.05)*4;
-  obX.fillStyle="#1e3a5f";obX.beginPath();obX.ellipse(cx,cy+bob+18,16,18,0,0,Math.PI*2);obX.fill();
-  obX.fillStyle="#ffe4c4";obX.beginPath();obX.ellipse(cx,cy+bob-4,21,20,0,0,Math.PI*2);obX.fill();
-  obX.fillStyle="#2d1b69";obX.beginPath();obX.ellipse(cx,cy+bob-22,21,7,0,Math.PI,Math.PI*2);obX.fill();
-  obX.beginPath();obX.ellipse(cx-19,cy+bob-14,5.5,11,-.3,0,Math.PI*2);obX.fill();
-  obX.beginPath();obX.ellipse(cx+19,cy+bob-14,5.5,11,.3,0,Math.PI*2);obX.fill();
-  obX.fillStyle="#2d1b69";obX.beginPath();obX.ellipse(cx-7,cy+bob-4,4,5,0,0,Math.PI*2);obX.fill();
-  obX.beginPath();obX.ellipse(cx+7,cy+bob-4,4,5,0,0,Math.PI*2);obX.fill();
-  obX.fillStyle="#fff";obX.beginPath();obX.arc(cx-5.5,cy+bob-5.5,1.5,0,Math.PI*2);obX.fill();
-  obX.beginPath();obX.arc(cx+8.5,cy+bob-5.5,1.5,0,Math.PI*2);obX.fill();
-  obX.strokeStyle="#c0392b";obX.lineWidth=1.5;
-  if(mood===0){obX.beginPath();obX.arc(cx,cy+bob+3,5,.15,Math.PI-.15);obX.stroke();}
-  else if(mood===1){obX.beginPath();obX.arc(cx,cy+bob+2,4,.2,Math.PI-.2);obX.stroke();}
-  else{obX.beginPath();obX.moveTo(cx-4,cy+bob+3);obX.lineTo(cx+4,cy+bob+3);obX.stroke();}
-  obX.fillStyle="rgba(255,100,100,.2)";
-  obX.beginPath();obX.ellipse(cx-15,cy+bob+2,5,3,0,0,Math.PI*2);obX.fill();
-  obX.beginPath();obX.ellipse(cx+15,cy+bob+2,5,3,0,0,Math.PI*2);obX.fill();
-  // mic
-  obX.fillStyle="#6c8eff";obX.beginPath();obX.roundRect(cx-4,cy+bob-40,8,16,4);obX.fill();
-  obX.strokeStyle="#6c8eff";obX.lineWidth=2;obX.beginPath();obX.arc(cx,cy+bob-28,10,0,Math.PI);obX.stroke();
-  obX.beginPath();obX.moveTo(cx,cy+bob-18);obX.lineTo(cx,cy+bob-14);obX.stroke();
-  obF++;requestAnimationFrame(()=>drawOnboardChibi(tourStep%3));
+  const bob=Math.sin(obF*.05)*4;
+  obX.save();obX.translate(0,bob);
+  drawContain(obX,ADO_IMG.onboard,100,110,3);
+  obX.restore();
+  obF++;requestAnimationFrame(drawOnboardChibi);
 }
-drawOnboardChibi(0);
+drawOnboardChibi();
 
 // Show tour on first visit
 if(!localStorage.getItem("ado-toured"))setTimeout(startTour,1200);

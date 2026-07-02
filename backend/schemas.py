@@ -37,12 +37,38 @@ class HasilOut(BaseModel):
         from_attributes = True
 
 
+class KriteriaOut(BaseModel):
+    nama: str
+    bobot: float
+    tipe: str
+
+    class Config:
+        from_attributes = True
+
+
+class AlternatifOut(BaseModel):
+    nama: str
+
+    class Config:
+        from_attributes = True
+
+
+class NilaiOut(BaseModel):
+    alternatif_index: int
+    kriteria_index: int
+    nilai: float
+
+    class Config:
+        from_attributes = True
+
+
 class StudiKasusOut(BaseModel):
     id: int
     nama: str
     deskripsi: Optional[str]
     metode: str
     dibuat_pada: datetime
+    device_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -50,3 +76,9 @@ class StudiKasusOut(BaseModel):
 
 class StudiKasusDetailOut(StudiKasusOut):
     hasil: List[HasilOut]
+    # Ditambahkan supaya fitur What-If Analysis (butuh bobot & tipe tiap
+    # kriteria, nama alternatif, dan matriks nilai asli) bisa jalan di frontend.
+    # Sebelumnya field ini TIDAK ada di response -> itu sebabnya What-If gagal.
+    kriteria: List[KriteriaOut] = []
+    alternatif: List[AlternatifOut] = []
+    nilai: List[NilaiOut] = []

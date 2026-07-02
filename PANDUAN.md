@@ -16,9 +16,9 @@ Butuh Python 3.10+ terinstall.
 ```bash
 cd dss-app
 pip install -r requirements.txt
-cd backend
-uvicorn main:app --reload
+uvicorn backend.main:app --reload
 ```
+(Dijalankan dari folder utama `dss-app`, BUKAN dari dalam folder `backend` — soalnya file-file backend saling import pakai `backend.xxx`.)
 
 Buka browser ke `http://localhost:8000` — coba bikin studi kasus, lihat hasilnya muncul.
 (Database otomatis pakai file `dss.db` lokal, tidak perlu setup apa-apa dulu.)
@@ -47,8 +47,8 @@ Buka browser ke `http://localhost:8000` — coba bikin studi kasus, lihat hasiln
 4. Di tab **Variables**, tambahkan:
    - `DATABASE_URL` = connection string dari Supabase (langkah 2)
 5. Di tab **Settings → Build**, set:
-   - Root directory: `backend`
-   - Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - Root directory: (kosongkan / biarkan folder utama repo, JANGAN diisi `backend`)
+   - Start command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
 6. Railway akan kasih kamu URL publik, misal `https://dss-app-production.up.railway.app`
 7. Buka URL itu di browser — kalau form muncul, berarti sukses online.
 
