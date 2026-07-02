@@ -9,9 +9,11 @@ router = APIRouter(prefix="/auth/microsoft", tags=["Microsoft Login"])
 async def login_microsoft(request: Request):
     if not microsoft_configured():
         return RedirectResponse(
-            url="/?login_error=" + "Microsoft+belum+dikonfigurasi.+Isi+MICROSOFT_CLIENT_ID+%26+MICROSOFT_CLIENT_SECRET+di+.env"
+            url="/?login_error=Microsoft+belum+dikonfigurasi.+Isi+MICROSOFT_CLIENT_ID+%26+MICROSOFT_CLIENT_SECRET+di+.env"
         )
+
     redirect_uri = "https://dssapp.up.railway.app/auth/microsoft/callback"
+
     return await oauth.microsoft.authorize_redirect(request, redirect_uri)
 
 
