@@ -9,9 +9,11 @@ router = APIRouter(prefix="/auth/google", tags=["Google Login"])
 async def login_google(request: Request):
     if not google_configured():
         return RedirectResponse(
-            url="/?login_error=" + "Google+belum+dikonfigurasi.+Isi+GOOGLE_CLIENT_ID+%26+GOOGLE_CLIENT_SECRET+di+.env"
+            url="/?login_error=Google+belum+dikonfigurasi."
         )
-    redirect_uri = str(request.url_for("auth_google_callback"))
+
+    redirect_uri = "https://dssapp.up.railway.app/auth/google/callback"
+
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
