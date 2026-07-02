@@ -23,14 +23,14 @@ async def auth_microsoft_callback(request: Request):
     except Exception as e:
         return RedirectResponse(url=f"/?login_error=Microsoft+gagal:+{e}")
 
-
-
     request.session["user"] = {
         "name": userinfo.get("name") or userinfo.get("email"),
-        "email": userinfo.get("email") or userinfo.get("preferred_username"),
-        "picture": None,
+        "email": userinfo.get("email"),
+        "picture": userinfo.get("picture"),
         "provider": "microsoft",
     }
-    # Microsoft login otomatis dianggap "terhubung Power BI" (dipakai fitur push di tab Export)
-    request.session["pbi_connected"] = True
+
+    # Simpan access token untuk Power BI
+    request.session["microsoft_access_token"] = token["access_token"]
+
     return RedirectResponse(url="/?login_success=microsoft")
