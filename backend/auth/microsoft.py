@@ -16,6 +16,9 @@ async def login_microsoft(request: Request):
 
 
 import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 @router.get("/callback")
 async def auth_microsoft_callback(request: Request):
@@ -23,7 +26,8 @@ async def auth_microsoft_callback(request: Request):
         token = await oauth.microsoft.authorize_access_token(request)
         userinfo = token.get("userinfo") or await oauth.microsoft.userinfo(token=token)
     except Exception as e:
-        traceback.print_exc()  # tampil full stack trace di log Railway
+        logger.exception("Microsoft OAuth failed")
+        print(traceback.format_exc())
         return RedirectResponse(url=f"/?login_error={type(e).__name__}: {e}")
 
 
